@@ -4,3 +4,6 @@ Raster, Vector and Raptor Based approaches for aggregate calculations on GIS dat
 Possible Datasets:
 - https://cds.climate.copernicus.eu/datasets
 - 
+
+Useful stuff:
+Install QGIS in linux: http://test.qgis.org/html/en/site/forusers/alldownloads.html#debian-ubuntu
