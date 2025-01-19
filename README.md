@@ -2,15 +2,11 @@
 
 Raster, Vector and Raptor Based approaches for aggregate calculations on GIS data.
 
-## Repo structure
+## Recommendations for the project
 
-- `src`: Contains the source code for the project
-    - `src/data`: Contains test data files:
-        - `src/data/ne_10m_admin_0_countries.shp`: Contains the shapefile for world countries (vector data)
-        - `src/data/ECMWF_utci_20230101_v1.1_con.nc`: Contains temperatures for the world (raster data)
-    - `src/qgis_zonal_stats_script.py`: contains copypaste code for zonal statistics in QGIS python console
-    - `src/naive_point_in_polygon.py`: my test at a naive point in polygon algorithm compared to a library that does zonal statistics
-- docs: Contains papers, documents, etc.
+1. I like using gitkraken for managing the repository, you should have access to the pro version if you requested the student github pack with you university email.
+
+2. I like vscode as IDE.
 
 ## Environment setup
 
@@ -40,7 +36,6 @@ If you wanna use conda, pipenv, pip or whatever, I exported a requirements.txt f
 If using vscode and uv, remember to setup the python interpreter used for your debugger: open command pallete (ctrl+shift+p) and search for "Python: Select Interpreter", then select the one in the .venv directory, which should be something like `Python 3.12.8 ('.venv')`.
 
 Then just "Run and Debug" as usual.
-
 
 ## Useful stuff
 - Install QGIS in linux: http://test.qgis.org/html/en/site/forusers/alldownloads.html#debian-ubuntu
