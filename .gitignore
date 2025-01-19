@@ -169,3 +169,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+src/data/qgis_zonal_stats_test.qgz
+
+src/data/ECMWF_utci_20230101_v1.1_con.nc.aux.xml
