@@ -113,6 +113,12 @@ def naive_point_in_polygon(raster, polygon):
     mean = data[mask].mean()
     return mean
 
+def qtree_point_in_polygon(raster, polygon):
+    # https://stackoverflow.com/questions/36282306/is-there-way-to-optimize-speed-of-shapely-geometry-shape-containsa-point-call
+    # https://gis.stackexchange.com/questions/23688/splitting-vector-into-equal-smaller-parts-using-qgis/23694#23694
+    # https://gis.stackexchange.com/questions/120955/understanding-use-of-spatial-indexes-with-rtree/144764#144764
+    return None
+
 first_element = vector_layer.iloc[0]
 polygon = first_element.geometry
 t0 = t.time()
