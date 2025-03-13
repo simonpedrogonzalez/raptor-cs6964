@@ -85,8 +85,21 @@ def xy_np(transform, cols, rows, offset='center'):
     locs = _transnp @ _translt @ pts
     return locs[0], locs[1]
 
+def get_bounding_box_pixel_coords(raster, polygon):
+    minx, miny, maxx, maxy = polygon.bounds
+    row_min, col_min = raster.index(minx, maxy)
+    row_max, col_max = raster.index(maxx, miny)
+    row_min = max(0, row_min)
+    col_min = max(0, col_min)
+    row_max = min(raster.height - 1, row_max)
+    col_max = min(raster.width - 1, col_max)
+    window = (col_min, row_min, col_max, row_max)
+    return window
+
+
 def qsplit(raster, polygon, min_size=1e6):
-    window = (0, 0, raster.width-1, raster.height-1)
+    # window = (0, 0, raster.width-1, raster.height-1)
+    window = get_bounding_box_pixel_coords(raster, polygon)
     polygon = gpd.GeoDataFrame(geometry=[polygon], crs=raster.crs)
     s, c = qsplitr(raster, polygon, min_size, window)
     return s / c
