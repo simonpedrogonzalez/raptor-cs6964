@@ -48,3 +48,10 @@ Raster data sources:
 Vector data sources:
 - https://www.gadm.org
 - https://www.naturalearthdata.com/downloads/10m-cultural-vectors/
+
+
+## Raptor
+https://colab.research.google.com/drive/1OhHzpgIcS9SKf2ePFtTwmQaurqjwNtMP
+
+## Raster
+https://colab.research.google.com/drive/1OBDEDemhsbOFmfPteVjuAfFcbU2tXAbz

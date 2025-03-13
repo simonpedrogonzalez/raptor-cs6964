@@ -13,6 +13,7 @@ import tqdm
 import numpy as np
 import time as t
 from geocube.vector import vectorize
+from geocube.api.core import make_geocube
 from shapely import points as shpoints
 import matplotlib
 import matplotlib.pyplot as plt
@@ -272,6 +273,11 @@ first_element = vector_layer.iloc[0]
 polygon = first_element.geometry
 method = "naive"
 
+# test
+# xarray_layer = rxr.open_rasterio(raster_layer_file, masked=True, decode_times=False)
+# vectorized = vectorize(xarray_layer)
+# end test
+
 t0 = t.time()
 mean = zonal_mean(raster_layer, polygon, method)
 t1 = t.time()
@@ -308,8 +314,14 @@ assert np.isclose(true_mean, mean, atol=1e-6)
 # read src data US_MSR.tif as raster and create a box polygon as the left half of the raster
 # US MAP test
 print("US MAP test")
+
 raster_layer_file = f'{base}/US_MSR.tif'
 raster_layer = rio.open(raster_layer_file)
+# test
+xarray_layer = rxr.open_rasterio(raster_layer_file, masked=True, decode_times=False)
+vectorized = vectorize(xarray_layer)
+# end test
+
 bounds = raster_layer.bounds
 polygon = box(bounds.left, bounds.bottom, (bounds.left + bounds.right)/2, bounds.top)
 polygon_gdf = gpd.GeoDataFrame(geometry=[polygon], crs=raster_layer.crs)
