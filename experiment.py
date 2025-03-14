@@ -36,15 +36,30 @@ class Experiment:
         metrics_df = pd.DataFrame(metric_list)
         metrics_summary = metrics_df.describe()
 
-        # boxplot with the metrics
-        sns.boxplot(data=metrics_df)
+        # boxplot per metric in the same figure
+        n_metrics = len(metrics_df.columns)
+        fig, axs = plt.subplots(1, n_metrics, figsize=(15, 5))
+        for i, col in enumerate(metrics_df.columns):
+            sns.boxplot(data=metrics_df[col], ax=axs[i])
+            axs[i].set_title(col)
+        plt.tight_layout()
         plt.savefig(f"{RESULTS_PATH}/boxplot_{now_string}.png")
-
-        # lineplot with the metrics
-        metrics_df.plot()
+        plt.clf()
+        # lineplot per metric
+        fig, axs = plt.subplots(n_metrics, 1, figsize=(5, 10))
+        for i, col in enumerate(metrics_df.columns):
+            sns.lineplot(data=metrics_df[col], ax=axs[i])
+            # axs[i].set_title(col)
+            # remove x label from all but the last plot
+            if i < n_metrics - 1:
+                axs[i].set_xlabel("")
+        plt.tight_layout()
+        # remove vertical space between plots
+        plt.subplots_adjust(hspace=0)
         plt.savefig(f"{RESULTS_PATH}/lineplot_{now_string}.png")
+        plt.clf()
         
-        
+
         vector_summary = describe_vector_file(self.vector_path)
         raster_summary = describe_raster_file(self.raster_path)
 

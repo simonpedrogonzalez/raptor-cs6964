@@ -16,7 +16,7 @@ exp = Experiment(
     raster_path=raster_layer_file,
     vector_path=vector_layer_file,
     func=reference_method,
-    reps=10,
+    reps=2,
     stats=['mean']
 )
 
