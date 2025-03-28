@@ -1,5 +1,8 @@
 import numpy as np
 import geopandas as gpd
+import rasterio as rio
+from rasterio.features import geometry_window
+from rasterio.windows import Window
 
 def to_numpy2(transform):
     return np.array([transform.a, 
@@ -7,7 +10,7 @@ def to_numpy2(transform):
     transform.c, 
     transform.d, 
     transform.e, 
-    transform.f, 0, 0, 1], dtype='float64').reshape((3,3))
+    transform.f, 0, 0, 1], dtype=np.float32).reshape((3,3))
 
 def xy_np(transform, cols, rows, offset='center'):
     # https://gis.stackexchange.com/questions/415062/how-to-speed-up-rasterio-transform-xy
@@ -38,63 +41,50 @@ def xy_np(transform, cols, rows, offset='center'):
     locs = _transnp @ _translt @ pts
     return locs[0], locs[1]
 
-def vectorize(raster):
-    """Vectorize a raster into a GeoDataFrame of points
+def vectorize_raster_to_points(raster: rio.DatasetReader, window: Window = None):
+    """Vectorize a raster into a GeoDataFrame of points.
+    It does not read the raster, just uses the raster's
+    transform and crs to create the points.
     """
 
     transform = raster.transform
     crs = raster.crs
 
-    # It's not clear if I should take the height and width of the raster or
-    # the bounding box of the polygon to create the meshgrid
-    n_cols = raster.width
-    n_rows = raster.height
+    if window is not None:
+        n_cols = window.width
+        n_rows = window.height
+        unique_row_indices = np.arange(window.height) + window.row_off
+        unique_col_indices = np.arange(window.width) + window.col_off
+    else:
+        n_cols = raster.width
+        n_rows = raster.height
+        unique_row_indices = np.arange(n_rows)
+        unique_col_indices = np.arange(n_cols)
+
+    assert n_cols * n_rows < 20e6, "Too many points to vectorize"    
     
-    row_indices, col_indices = np.meshgrid(np.arange(n_rows), np.arange(n_cols), indexing='ij')
+    row_indices, col_indices = np.meshgrid(
+        unique_row_indices.astype(np.int32),
+        unique_col_indices.astype(np.int32),
+        indexing='ij',
+        sparse=False
+        )
+
     row_indices = row_indices.ravel()
     col_indices = col_indices.ravel()
 
     x, y = xy_np(transform, row_indices, col_indices)
     points = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x, y), crs=crs)
 
-    return points
+    return points, (row_indices, col_indices)
 
-def get_polygon_bounding_box_pixels(raster, polygon):
-    """Get the indices of the pixels intersected with
-    the bounding box of a polygon.
-    """
-    minx, miny, maxx, maxy = polygon.bounds
-    row_min, col_min = raster.index(minx, maxy)
-    row_max, col_max = raster.index(maxx, miny)
-    row_min = max(0, row_min)
-    col_min = max(0, col_min)
-    row_max = min(raster.height - 1, row_max)
-    col_max = min(raster.width - 1, col_max)
-    window = (col_min, row_min, col_max, row_max)
+def split_window_into_quadrants(window: rio.windows.Window):
+    half_width = int(window.width // 2)
+    half_height = int(window.height // 2)
 
-    return window
+    wtl = Window(window.col_off, window.row_off, half_width, half_height)  
+    wtr = Window(window.col_off + half_width, window.row_off, window.width - half_width, half_height)
+    wbl = Window(window.col_off, window.row_off + half_height, half_width, window.height - half_height)
+    wbr = Window(window.col_off + half_width, window.row_off + half_height, window.width - half_width, window.height - half_height)
 
-
-def read_raster_data(raster, mask, col_start=0, row_start=0):
-    # Get the extreme non-masked values
-    non_masked_indices = np.where(mask)
-
-    top = non_masked_indices[0].min()  # Row start
-    bottom = non_masked_indices[0].max() + 1  # Row end
-    left = non_masked_indices[1].min()  # Col start
-    right = non_masked_indices[1].max() + 1  # Col end
-
-    # Fix the window to use (col_off, row_off, width, height)
-    window = rio.windows.Window(left + col_start, top + row_start, right - left, bottom - top)
-
-    # Read the correct window
-    data = raster.read(1, window=window)
-
-    # Ensure mask matches the read window
-    mask2 = mask[top:bottom, left:right]  # Fix slicing order
-
-    # Correct index shift
-    # data_indices_read = np.where(mask2)
-    # data_indices_read = (data_indices_read[0] + top + row_start, data_indices_read[1] + left + col_start)
-
-    return data[mask2]
+    return wtl, wtr, wbl, wbr

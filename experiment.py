@@ -14,7 +14,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 class Experiment:
-    def __init__(self, raster_path, vector_path, func, reps=1, stats=['mean']):
+    def __init__(self, raster_path, vector_path, func, reps=1, stats=['count', 'mean']):
         self.raster_path = raster_path
         self.vector_path = vector_path
         self.func = func

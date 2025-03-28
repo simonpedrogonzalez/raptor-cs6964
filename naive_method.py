@@ -1,35 +1,40 @@
-from zonal_stat_method import ZonalStatMethod
-from utils import vectorize
+from zone_stat_method import ZonalStatMethod
+from utils import vectorize_raster_to_points
+from rasterstats.io import Raster
+import rasterio as rio
+from rasterio.features import geometry_window
+import geopandas as gpd
+from shapely import Geometry
+import numpy as np
 
 class NaivePointInPolygon(ZonalStatMethod):
 
+    __name__ = "NaivePointInPolygon"
+
     def __init__(self):
-        pass
+        super().__init__()
 
-    def _read_vector_file(self):
-        pass
+    def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
+        return self._naive_point_in_polygon(feature, raster, window)
 
-    def _geometry_iterator(self):
+    def _naive_point_in_polygon(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
 
-        vector_layer = self._read_vector_file()
-        def geom_iter():
-            pass
+        points, pixel_indices = vectorize_raster_to_points(raster, window)
 
-        return geom_iter()
+        # Naive point in polygon check
+        indexes = gpd.tools.sjoin(
+            points,
+            feature,
+            predicate='within',
+            how='inner'
+            ).index
 
-    def _compute(self):
-
-        # maybe in area only
-        points = vectorize(raster)
-
-        for geom in self._geom_iter():
-            
-            indices = gpd.tools.sjoin(points, polygon, predicate='within', how='inner').index
-
-            mask = np.zeros((n_rows, n_cols), dtype=bool)
-            mask[row_indices[indices], col_indices[indices]] = True
-
-            # somewhat efficient reading
-            data = read_data(raster, mask)
-            
-            return data.mean()
+        # Relative mask to the window
+        mask = np.zeros((window.height, window.width), dtype=bool)
+        row_indices, col_indices = pixel_indices
+        mask[row_indices[indexes] - window.row_off, col_indices[indexes] - window.col_off] = True
+        
+        data = raster.read(window=window, masked=True)
+        data = data[:, mask]
+        
+        return self._compute_stats_from_masked_array(data)

@@ -15,6 +15,13 @@
             "request": "attach",
             "connect": { "host": "127.0.0.1", "port": 5678 },
             "justMyCode": false
+        },
+        {
+            "name": "exp_npp.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/exp_npp.py",
+            "console": "integratedTerminal"
         }
     ]
 }
