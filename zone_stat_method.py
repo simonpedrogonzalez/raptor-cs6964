@@ -61,7 +61,10 @@ class ZonalStatMethod():
         results = [r for r in results if r is not None]
 
         if len(results) == 0:
-            return None        
+            return None
+
+        if len(results) == 1:
+            return results[0]
 
         stats_out = {}
         for stat in self.stats:
@@ -74,7 +77,10 @@ class ZonalStatMethod():
             elif stat == "mean":
                 means = [r["mean"] for r in results if r["mean"] is not None]
                 counts = [r["count"] for r in results if r["mean"] is not None]
-                stats_out[stat] = np.average(means, weights=counts)
+                if np.sum(counts) == 0:
+                    stats_out[stat] = None
+                else:
+                    stats_out[stat] = np.average(means, weights=counts)
 
         return stats_out
 

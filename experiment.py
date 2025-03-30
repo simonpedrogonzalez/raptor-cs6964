@@ -6,7 +6,7 @@ import gc
 import tqdm
 import psutil
 from profile import profile
-from reference import reference_method, compare_results
+from reference import reference_method, result_within_tolerance
 import datetime
 from file_utils import describe_raster_file, describe_vector_file, validate_raster_vector_compatibility
 import json
@@ -14,12 +14,13 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 class Experiment:
-    def __init__(self, raster_path, vector_path, func, reps=1, stats=['count', 'mean']):
+    def __init__(self, raster_path, vector_path, func, reps=1, stats=['count', 'mean'], check_results=True):
         self.raster_path = raster_path
         self.vector_path = vector_path
         self.func = func
         self.reps = reps
         self.stats = stats
+        self.check_results = check_results
 
     def _reset(self):
         gc.collect()
@@ -97,13 +98,17 @@ class Experiment:
             # I'm wrapping the func call with the profiler
             result, metrics = profile(self.func)(self.raster_path, self.vector_path, self.stats)
             
-            correct, errors = compare_results(truth, result)
-            if not correct:
-                raise ValueError(f"Error in result: {errors}")
+            if self.check_results:
+                correct, errors = result_within_tolerance(truth[0], truth[1], result)
+                if not correct:
+                    raise ValueError(f"Error in result: {errors}")
             
             metric_list.append(metrics)
+        
+        print("Experiment finished")
+        print("Results:")
+        desc = pd.DataFrame(metric_list).describe()
+        print(desc.loc[["mean", "std"], :])
 
         self._write_results(metric_list)
         return
-
-    

@@ -1,7 +1,8 @@
 from experiment import Experiment
 from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
-from naive_method import NaivePointInPolygon
-from qsplit_method import QSplit
+from vector_methods import NaivePointInPolygon, QSplit
+from raster_methods import Clipping, Masking
+from raptor_methods import Scanline
 
 vector_layer_file = f'{VECTOR_DATA_PATH}/cb_2018_us_state_20m_filtered.shp'
 raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR.tif'
@@ -23,11 +24,31 @@ raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR.tif'
 
 # exp.run()
 
+# exp = Experiment(
+#     raster_path=raster_layer_file,
+#     vector_path=vector_layer_file,
+#     func=QSplit(),
+#     reps=1,
+#     stats=['count', 'mean']
+# )
+
+# exp.run()
+
+# exp = Experiment(
+#     raster_path=raster_layer_file,
+#     vector_path=vector_layer_file,
+#     func=Clipping(),
+#     reps=1,
+#     stats=['count', 'mean']
+# )
+
+# exp.run()
+
 exp = Experiment(
     raster_path=raster_layer_file,
     vector_path=vector_layer_file,
-    func=QSplit(),
-    reps=1,
+    func=Scanline(),
+    reps=5,
     stats=['count', 'mean']
 )
 
