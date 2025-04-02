@@ -1,8 +1,6 @@
 import numpy as np
 import geopandas as gpd
 import rasterio as rio
-from shapely import Geometry
-import sys
 from rasterio.features import geometry_window
 
 
@@ -12,6 +10,17 @@ class ZonalStatMethod():
     __name__ = "ZonalStatMethod"
 
     def __init__(self):
+        pass
+
+    def _precomputations(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
+        """Precomputations to be done before the main loop, for example for
+        creating indexes, QuadTrees, etc. Implementing this method is optional.
+
+        Parameters
+        ----------
+        features : gpd.GeoDataFrame
+        raster : rio.DatasetReader
+        """
         pass
 
     def _compute_stats_from_masked_array(self, masked: np.ndarray):
@@ -114,6 +123,9 @@ class ZonalStatMethod():
         # assuming no specific affine, nodata, transform, band=1
         results = []
         with rio.open(self.raster_file_path) as raster:
+            
+            self._precomputations(vector_layer, raster)
+
             for geom in vector_layer.geometry:
                 try:
                     window = geometry_window(raster, [geom])

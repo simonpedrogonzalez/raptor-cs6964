@@ -10,6 +10,7 @@ import numpy as np
 import shapely as shp
 from shapely import Polygon, Point, LineString
 from typing import List, Tuple, Dict
+from rtree import index
 
 class Scanline(ZonalStatMethod):
 
@@ -105,3 +106,123 @@ class Scanline(ZonalStatMethod):
         return self._combine_stats(results)
 
 
+
+class Node():
+    def __init__(self, ident, level, bounds, children):
+        self.id = ident
+        self.level = level
+        self.bounds = bounds
+        self.children = children
+        self.stats = None
+
+class AggQuadTree(ZonalStatMethod):
+
+    
+    __name__ = "AggQuadTree"
+
+    def __init__(self, max_depth: int = 5):
+        self.max_depth = max_depth
+        super().__init__()
+
+    def _build_agg_quadtree(self, raster: rio.DatasetReader, node: Node, depth: int, 
+
+
+    def _precomputations(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader):
+        
+        width = raster.width
+        height = raster.height
+
+        boxes_per_level = {}
+        x_min, y_min = 0, 0 # this could be set to coords instead
+        x_max, y_max = width, height # this could be set to coords instead
+
+        for level in range(self.max_depth):
+            divisions = 2 ** level
+            dx = width / divisions
+            dy = height / divisions
+            x_starts = np.linspace(x_min, x_max - dx, divisions)
+            y_starts = np.linspace(y_min, y_max - dy, divisions)
+
+            xs, ys = np.meshgrid(x_starts, y_starts)
+            xs = xs.flatten()
+            ys = ys.flatten()
+
+            boxes = np.stack([xs, ys, xs + dx, ys + dy], axis=1)
+            boxes_per_level[level] = boxes
+            
+
+        # given that each node has 4 children, the leaf nodes will be 4^max_depth
+        n_leaf_nodes = 4 ** max_depth
+        # compute all the boxes for the leaf nodes
+        boxes = []
+        for i in range(n_leaf_nodes):
+
+
+        idx = index.Index()
+
+        # Create the root node
+        root = Node(0, 0, (0, 0, width, height), [])
+        idx.insert(root.id, root.bounds, root)
+
+
+
+
+
+        # Create a quadtree index
+        # root = Node(0, 0, (0, 0, 10, 10), [])
+        # idx = index.Index()
+
+        # idx.insert(root.id, root.bounds, root)
+
+        # # Split the root node into quadrants
+        # node1 = Node(1, 1, (0, 0, 5, 5), [])
+        # node2 = Node(2, 1, (5, 0, 10, 5), [])
+        # node3 = Node(3, 1, (0, 5, 5, 10), [])
+        # node4 = Node(4, 1, (5, 5, 10, 10), [])
+
+        # idx.insert(node1.id, node1.bounds, node1)
+        # idx.insert(node2.id, node2.bounds, node2)
+        # idx.insert(node3.id, node3.bounds, node3)
+        # idx.insert(node4.id, node4.bounds, node4)
+
+        # node6 = Node(6, 2, (0, 0, 2.5, 2.5), [])
+        # node7 = Node(7, 2, (2.5, 0, 5, 2.5), [])
+        # node8 = Node(8, 2, (0, 2.5, 2.5, 5), [])
+        # node9 = Node(9, 2, (2.5, 2.5, 5, 5), [])
+
+        # idx.insert(node6.id, node6.bounds, node6)
+        # idx.insert(node7.id, node7.bounds, node7)
+        # idx.insert(node8.id, node8.bounds, node8)
+        # idx.insert(node9.id, node9.bounds, node9)
+
+        # node10 = Node(10, 2, (5, 0, 7.5, 2.5), [])
+        # node11 = Node(11, 2, (7.5, 0, 10, 2.5), [])
+        # node12 = Node(12, 2, (5, 2.5, 7.5, 5), [])
+        # node13 = Node(13, 2, (7.5, 2.5, 10, 5), [])
+
+        # idx.insert(node10.id, node10.bounds, node10)
+        # idx.insert(node11.id, node11.bounds, node11)
+        # idx.insert(node12.id, node12.bounds, node12)
+        # idx.insert(node13.id, node13.bounds, node13)
+
+
+
+        # query = (3.25, 1.25, 6.25, 3.25) # should return 0, 1, 2, 7, 9, 10, 12.
+
+        # result = list(idx.intersection(query))
+        # print(result)
+
+        print('done')
+
+    
+def test():
+
+    from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
+
+    ag = AggQuadTree()
+    vector_layer_file = f'{VECTOR_DATA_PATH}/cb_2018_us_state_20m_filtered.shp'
+    raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR.tif'
+
+    ag(raster_layer_file, vector_layer_file, ['count', 'mean'])
+
+test()
