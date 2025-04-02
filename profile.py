@@ -1,5 +1,4 @@
 import time
-# import tracemalloc
 import psutil
 import functools
 from memory_profiler import memory_usage
@@ -8,7 +7,7 @@ def profile(func):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        process = psutil.Process()
+        # process = psutil.Process()
         
         # tracemalloc.start()
         io_before = psutil.disk_io_counters()

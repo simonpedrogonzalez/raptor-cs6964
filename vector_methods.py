@@ -1,10 +1,7 @@
 from zone_stat_method import ZonalStatMethod
 from utils import vectorize_raster_to_points, split_window_into_quadrants
-from rasterstats.io import Raster
 import rasterio as rio
-from rasterio.features import geometry_window
 import geopandas as gpd
-from shapely import Geometry
 import numpy as np
 import shapely as shp
 

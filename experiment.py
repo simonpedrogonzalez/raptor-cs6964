@@ -1,10 +1,7 @@
-from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH, RESULTS_PATH
+from constants import RESULTS_PATH
 import pandas as pd
-import numpy as np
-from dataclasses import dataclass
 import gc
 import tqdm
-import psutil
 from profile import profile
 from reference import reference_method, result_within_tolerance
 import datetime
@@ -24,6 +21,8 @@ class Experiment:
 
     def _reset(self):
         gc.collect()
+        # I deactivated cache clearing until we are ready to run experiments
+        # I should create a flag to enable/disable this
         # Clears both page cache and inodes/dentries cache assuming linux os
         # os.system("sync; echo 3 > /proc/sys/vm/drop_caches")
         # I dont think random seeds needs to be setted since all algos are deterministic

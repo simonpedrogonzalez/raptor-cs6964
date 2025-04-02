@@ -1,7 +1,6 @@
 import numpy as np
 import geopandas as gpd
 import rasterio as rio
-from rasterio.features import geometry_window
 from rasterio.windows import Window
 
 def to_numpy2(transform):
