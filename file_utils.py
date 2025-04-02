@@ -4,6 +4,7 @@ import os
 from shapely.geometry import box
 from shapely.geometry import MultiPolygon, Polygon
 import pandas as pd
+import math
 
 
 def validate_raster_vector_compatibility(raster_file_path, vector_file_path):
@@ -49,21 +50,25 @@ def describe_vector_file(vector_file_path):
             area = geom.area
         else:
             raise ValueError("Invalid geometry type")
+
+        compactness = 4 * math.pi * area / (perim ** 2) if perim > 0 else 0
+        complexity = 1 - compactness
+
         return {
             "n_vertices": n_vertices,
-            "fractal_dimension": perim**2 / area
+            "complexity": complexity
         }
 
     vector_summary = pd.DataFrame(vector.geometry.apply(geom_summary).to_list())
     total_n_vertices = vector_summary["n_vertices"].sum()
-    avg_fractal_dimension = vector_summary["fractal_dimension"].mean()
+    avg_complexity = vector_summary["complexity"].mean()
 
     return {
         "name": name,
         "n_features": n_features,
         "geom_size_in_B": geom_size_bytes,
         "total_n_vertices": int(total_n_vertices),
-        "avg_fractal_dimension": float(avg_fractal_dimension)
+        "avg_complexity": float(avg_complexity)
     }
 
 
