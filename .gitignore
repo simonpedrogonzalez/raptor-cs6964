@@ -179,3 +179,5 @@ src/data/ECMWF_utci_20230101_v1.1_con.nc.aux.xml
 data/
 
 results/
+
+scanline_count_difference
