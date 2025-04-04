@@ -124,7 +124,7 @@ class AggQuadTree(ZonalStatMethod):
         self.max_depth = max_depth
         super().__init__()
 
-    def _build_agg_quadtree(self, raster: rio.DatasetReader, node: Node, depth: int, 
+    # def _build_agg_quadtree(self, raster: rio.DatasetReader, node: Node, depth: int, 
 
 
     def _precomputations(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader):
@@ -132,11 +132,17 @@ class AggQuadTree(ZonalStatMethod):
         width = raster.width
         height = raster.height
 
+        width = 10
+        height = 10
+
         boxes_per_level = {}
         x_min, y_min = 0, 0 # this could be set to coords instead
         x_max, y_max = width, height # this could be set to coords instead
+        n_total_boxes = sum([4 ** i for i in range(self.max_depth + 1)])
+        box_index = 0
+        idx = index.Index()
 
-        for level in range(self.max_depth):
+        for level in range(self.max_depth, -1, -1):
             divisions = 2 ** level
             dx = width / divisions
             dy = height / divisions
@@ -148,23 +154,34 @@ class AggQuadTree(ZonalStatMethod):
             ys = ys.flatten()
 
             boxes = np.stack([xs, ys, xs + dx, ys + dy], axis=1)
-            boxes_per_level[level] = boxes
+            ids = np.arange(box_index, box_index + len(boxes))
+            box_index += len(boxes)
+            parent_ids = np.floor(ids / 4).astype(int) + box_index
+            
+            for i in range(len(boxes)):
+                idx.insert(ids[i], boxes[i], parent_ids[i])
+            
+            boxes_per_level[level] = [
+                {"id": ids[i], "bounds": boxes[i], "parent_id": parent_ids[i]}
+                for i in range(len(boxes))
+            ]
+
+        print(boxes_per_level)
+        print('done')
+
+
+            
+            # box_ids = 
             
 
-        # given that each node has 4 children, the leaf nodes will be 4^max_depth
-        n_leaf_nodes = 4 ** max_depth
-        # compute all the boxes for the leaf nodes
-        boxes = []
-        for i in range(n_leaf_nodes):
+        # # given that each node has 4 children, the leaf nodes will be 4^max_depth
+        # n_leaf_nodes = 4 ** max_depth
+        # # compute all the boxes for the leaf nodes
+        # boxes = []
+        # for i in range(n_leaf_nodes):
 
 
-        idx = index.Index()
-
-        # Create the root node
-        root = Node(0, 0, (0, 0, width, height), [])
-        idx.insert(root.id, root.bounds, root)
-
-
+        # idx = index.Index()
 
 
 
@@ -219,7 +236,7 @@ def test():
 
     from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
 
-    ag = AggQuadTree()
+    ag = AggQuadTree(max_depth=3)
     vector_layer_file = f'{VECTOR_DATA_PATH}/cb_2018_us_state_20m_filtered.shp'
     raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR.tif'
 
