@@ -98,13 +98,28 @@ class ZonalStatMethod():
         """
         raise NotImplementedError
 
+    def _run(self, vector_layer: gpd.GeoDataFrame, raster: rio.DatasetReader):
+        results = []
+        self._precomputations(vector_layer, raster)
+        for geom in vector_layer.geometry:
+            try:
+                window = geometry_window(raster, [geom])
+            except rio.errors.WindowError:
+                # there is no intersection
+                results.append(None)
+                continue
+            feature = gpd.GeoDataFrame(geometry=[geom], crs=vector_layer.crs)
+            results.append(self._compute_stats(feature, raster, window))
+        return results
+        
+
     def __call__(self, raster_file_path: str, vector_file_path: str, stats: list):
         """User-facing method to compute the zonal statistics.
 
         Parameters
         ----------
-        raster_file_path : str
-        vector_file_path : str
+        raster_file_path : str OR rio.DatasetReader
+        vector_file_path : str OR gpd.GeoDataFrame
         stats : List[str]
 
         Returns
@@ -117,23 +132,21 @@ class ZonalStatMethod():
         self.stats = stats
         self.raster_file_path = raster_file_path
         self.vector_file_path = vector_file_path
-
-        vector_layer = gpd.read_file(self.vector_file_path)
+        
+        if isinstance(vector_file_path, str):
+            vector_layer = gpd.read_file(self.vector_file_path)
+        elif isinstance(vector_file_path, gpd.GeoDataFrame):
+            vector_layer = vector_file_path
+        else:
+            raise ValueError("vector_file_path must be a string or a GeoDataFrame")
 
         # assuming no specific affine, nodata, transform, band=1
-        results = []
-        with rio.open(self.raster_file_path) as raster:
+        if isinstance(raster_file_path, str):
+            with rio.open(self.raster_file_path) as raster:
+                results = self._run(vector_layer, raster)
+        elif isinstance(raster_file_path, rio.DatasetReader):
+            results = self._run(vector_layer, raster_file_path)
+        else:
+            raise ValueError("raster_file_path must be a string or a DatasetReader")
             
-            self._precomputations(vector_layer, raster)
-
-            for geom in vector_layer.geometry:
-                try:
-                    window = geometry_window(raster, [geom])
-                except rio.errors.WindowError:
-                    # there is no intersection
-                    results.append(None)
-                    continue
-                feature = gpd.GeoDataFrame(geometry=[geom], crs=vector_layer.crs)
-                results.append(self._compute_stats(feature, raster, window))
-
         return results

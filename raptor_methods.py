@@ -5,12 +5,16 @@ import rasterio as rio
 import rasterio.mask as rio_mask
 from rasterio.features import geometry_window
 import geopandas as gpd
-from shapely import Geometry
+from shapely import Geometry, box
 import numpy as np
 import shapely as shp
 from shapely import Polygon, Point, LineString
 from typing import List, Tuple, Dict
 from rtree import index
+from raster_methods import Masking
+from rasterstats import zonal_stats
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 class Scanline(ZonalStatMethod):
 
@@ -108,14 +112,24 @@ class Scanline(ZonalStatMethod):
 
 
 class Node():
-    def __init__(self, ident, level, bounds, children):
-        self.id = ident
+    def __init__(self, _id, parent_id, level, _box, stats, max_depth):
+        self.id = _id
+        self.parent_id = parent_id
         self.level = level
-        self.bounds = bounds
-        self.children = children
-        self.stats = None
+        self.box = _box
+        self.stats = stats
+        self.max_depth = max_depth
 
-class AggQuadTree(ZonalStatMethod):
+    def is_contained_in_geom(self, geom: Geometry) -> bool:
+        return self.box.within(geom)
+    
+    def is_leaf(self) -> bool:
+        return self.level == self.max_depth
+
+    def is_root(self) -> bool:
+        return self.level == 0
+
+class AggQuadTree(Scanline):
 
     
     __name__ = "AggQuadTree"
@@ -123,21 +137,14 @@ class AggQuadTree(ZonalStatMethod):
     def __init__(self, max_depth: int = 5):
         self.max_depth = max_depth
         super().__init__()
-
-    # def _build_agg_quadtree(self, raster: rio.DatasetReader, node: Node, depth: int, 
-
-
+    
     def _precomputations(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader):
         
         width = raster.width
         height = raster.height
 
-        width = 10
-        height = 10
-
         boxes_per_level = {}
-        x_min, y_min = 0, 0 # this could be set to coords instead
-        x_max, y_max = width, height # this could be set to coords instead
+        x_min, y_min, x_max, y_max = raster.bounds
         n_total_boxes = sum([4 ** i for i in range(self.max_depth + 1)])
         box_index = 0
         idx = index.Index()
@@ -150,88 +157,164 @@ class AggQuadTree(ZonalStatMethod):
             y_starts = np.linspace(y_min, y_max - dy, divisions)
 
             xs, ys = np.meshgrid(x_starts, y_starts)
+
             xs = xs.flatten()
             ys = ys.flatten()
 
             boxes = np.stack([xs, ys, xs + dx, ys + dy], axis=1)
-            ids = np.arange(box_index, box_index + len(boxes))
-            box_index += len(boxes)
-            parent_ids = np.floor(ids / 4).astype(int) + box_index
+            
+            if level != 0:
+                blocks = boxes.reshape(divisions//2, 2, divisions//2, 2, 4)\
+                    .transpose(0, 2, 1, 3, 4)\
+                    .reshape(-1, 4)
+                boxes = blocks
+                
+            n_boxes = len(blocks)
+
+            ids = (np.arange(n_boxes) + box_index).astype('uint8')
+            box_index += n_boxes
+            parent_ids = (np.arange(n_boxes // 4) + box_index).astype('uint8').repeat(4)
+            if level == 0:
+                parent_ids = np.array([np.nan])
+
+            shp_boxes = box(boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3])
+
+            if level == self.max_depth:
+                
+                vector_layer = gpd.GeoDataFrame(
+                    geometry=shp_boxes,
+                    crs=feature.crs
+                )
+
+                masking_method = Masking()
+                aggregates = masking_method(raster, vector_layer, self.stats)
+                aggregates = np.array(aggregates)
+            
+            else:
+                # use self._combine_stats to combine the stats of the previous level
+                # run combine over the previous_aggregates using previous_ids
+                # to know which previous_aggregates belong to which parent
+
+                aggregates = []
+                for i in range(len(boxes)):
+                    child_ids = previous_ids[previous_parent_ids == previous_parent_ids[i]] \
+                        - previous_ids.min()
+                    child_aggregates = previous_aggregates[child_ids]
+
+                    aggregates.append(self._combine_stats(child_aggregates))
+                
+                aggregates = np.array(aggregates)
+
+            previous_aggregates = aggregates
+            previous_ids = ids
+            previous_parent_ids = parent_ids
+            
+            test_plot(boxes, aggregates, (width, height))
             
             for i in range(len(boxes)):
-                idx.insert(ids[i], boxes[i], parent_ids[i])
-            
-            boxes_per_level[level] = [
-                {"id": ids[i], "bounds": boxes[i], "parent_id": parent_ids[i]}
-                for i in range(len(boxes))
-            ]
+                node = Node(
+                    _id=ids[i],
+                    parent_id=parent_ids[i],
+                    level=level,
+                    max_depth=self.max_depth,
+                    _box=shp_boxes[i],
+                    stats=aggregates[i]
+                )
+                idx.insert(ids[i], boxes[i], obj=node)
 
-        print(boxes_per_level)
-        print('done')
+        self.idx = idx
+
+    def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
+
+        # Get all intersecting nodes, sorted from root to leaves
+        nodes = list(self.idx.intersection(window.bounds, objects=True))[::-1]
+        geom = feature.geometry[0]
+
+        partials = []
+        while len(nodes) > 0:
+            node = nodes.pop(0)
+            if node.is_contained_in_geom(geom):
+                partials.append(node.stats)
+                if node.is_leaf():
+                    continue
+                # remove all children from the list
+                for n in nodes:
+                    if n.parent_id == node.id:
+                        nodes.remove(n)
+            else:
+                if node.is_leaf():
+                    # is leaf but only intersects the geom
+                    intersection_geom = node.box.intersection(geom)
+                    win = rio.windows.from_bounds(
+                        intersection_geom.bounds[0],
+                        intersection_geom.bounds[1],
+                        intersection_geom.bounds[2],
+                        intersection_geom.bounds[3],
+                        transform=raster.transform
+                    )
+                    mask = rio.features.rasterize(
+                        [(intersection_geom, 1)],
+                        out_shape=(win.height, win.width),
+                        transform=rio.windows.transform(win, raster.transform),
+                        fill=0,
+                        dtype='uint8'
+                    ).astype(bool)
+                    data = raster.read(window=win, masked=True)
+                    data = data[:, mask]
+                    partials.append(self._compute_stats_from_masked_array(data))
+                else:
+                    # not completely inside but has children, so the children
+                    # will be analyzed in next iterations
+                    continue
+        
+        # combine the partials
+        return self._combine_stats(partials)
+
+def test_plot(boxes, aggregates, max_level_shape):
+
+    nx, ny = max_level_shape
+    fig, ax = plt.subplots(figsize=(nx, ny))
+
+    for i, (x0, y0, x1, y1) in enumerate(boxes):
+        rect = patches.Rectangle((x0, y0), x1 - x0, y1 - y0,
+                                linewidth=1, edgecolor='black', facecolor='none')
+        ax.add_patch(rect)
+        
+        # Label the box with its index at the center
+        cx = (x0 + x1) / 2
+        cy = (y0 + y1) / 2
+        tt = aggregates[i]['count']
+        ax.text(cx, cy, tt, fontsize=8, ha='center', va='center')
+
+    ax.set_xlim(0, nx)
+    ax.set_ylim(0, ny)
+    ax.set_aspect('equal')
+    ax.invert_yaxis()  # Optional: to mimic raster image top-down layout
+    plt.grid(True)
+    plt.show()
+
+def test_raster():
+
+    # 10x10 raster with all 1s
+    array = np.ones((8, 8), dtype=np.uint8)
+    transform = rio.transform.from_origin(0, 8, 1, 1)  # (x_min, y_max, x_res, y_res)
+    from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
 
 
-            
-            # box_ids = 
-            
+    # Create the GeoTIFF file
+    with rio.open(
+        f"{RASTER_DATA_PATH}/test.tif",
+        "w",
+        driver="GTiff",
+        height=array.shape[0],
+        width=array.shape[1],
+        count=1,
+        dtype=array.dtype,
+        crs="EPSG:4326",  # WGS84
+        transform=transform,
+    ) as dst:
+        dst.write(array, 1)
 
-        # # given that each node has 4 children, the leaf nodes will be 4^max_depth
-        # n_leaf_nodes = 4 ** max_depth
-        # # compute all the boxes for the leaf nodes
-        # boxes = []
-        # for i in range(n_leaf_nodes):
-
-
-        # idx = index.Index()
-
-
-
-        # Create a quadtree index
-        # root = Node(0, 0, (0, 0, 10, 10), [])
-        # idx = index.Index()
-
-        # idx.insert(root.id, root.bounds, root)
-
-        # # Split the root node into quadrants
-        # node1 = Node(1, 1, (0, 0, 5, 5), [])
-        # node2 = Node(2, 1, (5, 0, 10, 5), [])
-        # node3 = Node(3, 1, (0, 5, 5, 10), [])
-        # node4 = Node(4, 1, (5, 5, 10, 10), [])
-
-        # idx.insert(node1.id, node1.bounds, node1)
-        # idx.insert(node2.id, node2.bounds, node2)
-        # idx.insert(node3.id, node3.bounds, node3)
-        # idx.insert(node4.id, node4.bounds, node4)
-
-        # node6 = Node(6, 2, (0, 0, 2.5, 2.5), [])
-        # node7 = Node(7, 2, (2.5, 0, 5, 2.5), [])
-        # node8 = Node(8, 2, (0, 2.5, 2.5, 5), [])
-        # node9 = Node(9, 2, (2.5, 2.5, 5, 5), [])
-
-        # idx.insert(node6.id, node6.bounds, node6)
-        # idx.insert(node7.id, node7.bounds, node7)
-        # idx.insert(node8.id, node8.bounds, node8)
-        # idx.insert(node9.id, node9.bounds, node9)
-
-        # node10 = Node(10, 2, (5, 0, 7.5, 2.5), [])
-        # node11 = Node(11, 2, (7.5, 0, 10, 2.5), [])
-        # node12 = Node(12, 2, (5, 2.5, 7.5, 5), [])
-        # node13 = Node(13, 2, (7.5, 2.5, 10, 5), [])
-
-        # idx.insert(node10.id, node10.bounds, node10)
-        # idx.insert(node11.id, node11.bounds, node11)
-        # idx.insert(node12.id, node12.bounds, node12)
-        # idx.insert(node13.id, node13.bounds, node13)
-
-
-
-        # query = (3.25, 1.25, 6.25, 3.25) # should return 0, 1, 2, 7, 9, 10, 12.
-
-        # result = list(idx.intersection(query))
-        # print(result)
-
-        print('done')
-
-    
 def test():
 
     from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
@@ -240,6 +323,8 @@ def test():
     vector_layer_file = f'{VECTOR_DATA_PATH}/cb_2018_us_state_20m_filtered.shp'
     raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR.tif'
 
+    # test_raster()
+    # raster_layer_file = f'{RASTER_DATA_PATH}/test.tif'
     ag(raster_layer_file, vector_layer_file, ['count', 'mean'])
 
 test()
