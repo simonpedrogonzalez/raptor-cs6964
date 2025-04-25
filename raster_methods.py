@@ -13,6 +13,7 @@ class Masking(ZonalStatMethod):
     def mask(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
         """Create the mask used for the zonal statistics, useful for debugging.
         """
+
         mask = rio.features.rasterize(
             [(shp.geometry.mapping(feature.geometry[0]), 1)],
             out_shape=(window.height, window.width),

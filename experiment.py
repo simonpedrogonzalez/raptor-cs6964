@@ -80,6 +80,9 @@ class Experiment:
 
     def run(self):
 
+        if 'count' not in self.stats:
+            self.stats.append("count")
+
         print(f"Starting experiment with {self.reps} repetitions")
         print(f"Function: {self.func.__name__}")
         print(f"Raster: {self.raster_path}")
