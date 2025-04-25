@@ -12,6 +12,9 @@ class ZonalStatMethod():
     def __init__(self):
         pass
 
+    def _get_params(self):
+        return {}
+
     def _precomputations(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
         """Precomputations to be done before the main loop, for example for
         creating indexes, QuadTrees, etc. Implementing this method is optional.

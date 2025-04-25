@@ -19,52 +19,35 @@ exp1 = Experiment(
     raster_path=raster_layer_file,
     vector_path=vector_layer_file,
     func=NaivePointInPolygon(),
-    reps=5,
-    stats=['mean'],
-    check_results=False,
 )
 
 exp2 = Experiment(
     raster_path=raster_layer_file,
     vector_path=vector_layer_file,
     func=QSplit(),
-    reps=5,
-    stats=['mean'],
-    check_results=False,
+    reps=2,
 )
 
 exp3 = Experiment(
     raster_path=raster_layer_file,
     vector_path=vector_layer_file,
     func=Masking(),
-    reps=5,
-    stats=['mean'],
-    check_results=False,
 )
 
 exp4 = Experiment(
     raster_path=raster_layer_file,
     vector_path=vector_layer_file,
     func=Clipping(),
-    reps=5,
-    stats=['mean'],
-    check_results=False,
 )
 exp5 = Experiment(
     raster_path=raster_layer_file,
     vector_path=vector_layer_file,
     func=Scanline(),
-    reps=5,
-    stats=['mean'],
-    check_results=False,
 )
 exp6 = Experiment(
     raster_path=raster_layer_file,
     vector_path=vector_layer_file,
     func=AggQuadTree(),
-    reps=5,
-    stats=['mean'],
-    check_results=False,
 )
 
 if __name__ == "__main__":

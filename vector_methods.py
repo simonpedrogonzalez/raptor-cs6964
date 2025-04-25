@@ -39,7 +39,7 @@ class NaivePointInPolygon(ZonalStatMethod):
 
 class QSplit(NaivePointInPolygon):
 
-    __name__ = "QSlit"
+    __name__ = "QSplit"
 
     def __init__(self, min_size=1e6):
         """Class to compute the zonal statistics using the QSplit method.
@@ -52,6 +52,11 @@ class QSplit(NaivePointInPolygon):
         """
         self.min_size = min_size
         super().__init__()
+
+    def _get_params(self):
+        return {
+            "min_size": self.min_size
+        }
 
     def _qsplit_recursive(self, raster: rio.DatasetReader, feature: gpd.GeoDataFrame, window: rio.windows.Window):
     

@@ -120,7 +120,7 @@ class Scanline(ZonalStatMethod):
             if len(intersections) >= 2:
 
                 # Process the scanline
-                result, global_mask = self._process_scanline(
+                result = self._process_scanline(
                     y, intersections, raster,
                 )
 
@@ -167,6 +167,11 @@ class AggQuadTree(Scanline):
     def __init__(self, max_depth: int = 5):
         self.max_depth = max_depth
         super().__init__()
+
+    def _get_params(self):
+        return {
+            "max_depth": self.max_depth
+        }
     
     def _precomputations(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader):
         
