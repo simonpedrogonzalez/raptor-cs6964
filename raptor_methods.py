@@ -49,7 +49,10 @@ class Scanline(ZonalStatMethod):
             return sorted(xs)
         raise ValueError("Unexpected intersection geometry")
     
-    def _process_scanline(self, y: float, intersections: List[float], raster: rio.DatasetReader) -> Dict[str, float]:
+    def _process_scanline(
+        self, y: float, intersections: List[float], raster: rio.DatasetReader,
+        # mask: np.ndarray = None, row_shift=None, col_shift=None,# debugging
+        ) -> Dict[str, float]:
         """Returns the 1 row statistics for the scanline intersections.
         """
 
@@ -79,14 +82,23 @@ class Scanline(ZonalStatMethod):
                 data = raster.read(1, window=row_window, masked=True)
                 intersection_result = self._compute_stats_from_masked_array(data)
                 row_results.append(intersection_result)
+                
+                # Debugging code
+                # mark the pixels in the global mask
+                # rmask = np.zeros((1, end_col - start_col), dtype=bool)
+                # rmask[0, :] = True
+                # win_row = int(row - row_shift)
+                # mask[win_row, start_col-col_shift:end_col-col_shift] = rmask[0, :]
+                # end of debugging code
 
-        return self._combine_stats(row_results)
+        return self._combine_stats(row_results) # , mask
 
     def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
 
 
-        from raster_methods import Masking
-        self.true_mask = Masking().mask(feature, raster, window)
+        # Debugging code
+        # from raster_methods import Masking
+        # self.true_mask = Masking().mask(feature, raster, window)
 
         row_start, row_end = window.row_off, window.row_off + window.height
         col_start, col_end = window.col_off, window.col_off + window.width
@@ -94,6 +106,9 @@ class Scanline(ZonalStatMethod):
         # Limits for the horizontal y scanlines, 1 pixel wider than the window
         x0 = (raster.transform * (col_start - 1, 0))[0]
         x1 = (raster.transform * (col_end, 0))[0]
+
+        # Debug code
+        # global_mask = np.zeros((window.height, window.width), dtype=bool)
 
         results = []
 
@@ -103,10 +118,25 @@ class Scanline(ZonalStatMethod):
             intersections = self._compute_scanline_intersections(y, x0, x1, feature)
 
             if len(intersections) >= 2:
+
                 # Process the scanline
-                result = self._process_scanline(row, y, intersections, raster, window)
+                result, global_mask = self._process_scanline(
+                    y, intersections, raster,
+                )
+
+                # Debugging code
+                # row_shift = row_start
+                # col_shift = col_start
+                # result, global_mask = self._process_scanline(
+                #     y, intersections, raster,
+                #     global_mask, row_shift,col_shift # debugging
+                # )
+
                 results.append(result)
 
+        # Debugging code
+        # plot_masks(raster, feature, global_mask, window)
+        
         return self._combine_stats(results)
 
 
@@ -152,11 +182,11 @@ class AggQuadTree(Scanline):
         box_index = 0
         idx = index.Index()
 
-        print(f"Total boxes: {n_total_boxes}")
-        print(f"Width: {width}, Height: {height} in coordinates")
-        print(f"Minx: {x_min}, Miny: {y_min} in coordinates")
-        print(f"Maxx: {x_max}, Maxy: {y_max} in coordinates")
-        print(f"Raster size: {raster.width} x {raster.height}")
+        # print(f"Total boxes: {n_total_boxes}")
+        # print(f"Width: {width}, Height: {height} in coordinates")
+        # print(f"Minx: {x_min}, Miny: {y_min} in coordinates")
+        # print(f"Maxx: {x_max}, Maxy: {y_max} in coordinates")
+        # print(f"Raster size: {raster.width} x {raster.height}")
 
         for level in range(self.max_depth, -1, -1):
             divisions = 2 ** level
@@ -180,12 +210,12 @@ class AggQuadTree(Scanline):
                 
             n_boxes = len(blocks)
 
-            print(f"Level {level}: {n_boxes} boxes")
-            print(f"Divisions: {divisions}")
-            print(f"Len boxes: {len(boxes)}")
-            print(f"max boxes: {max(boxes[:, 2])}, {max(boxes[:, 3])}")
-            print(f"min boxes: {min(boxes[:, 0])}, {min(boxes[:, 1])}")
-            print(f"First box: {boxes[0]}")
+            # print(f"Level {level}: {n_boxes} boxes")
+            # print(f"Divisions: {divisions}")
+            # print(f"Len boxes: {len(boxes)}")
+            # print(f"max boxes: {max(boxes[:, 2])}, {max(boxes[:, 3])}")
+            # print(f"min boxes: {min(boxes[:, 0])}, {min(boxes[:, 1])}")
+            # print(f"First box: {boxes[0]}")
 
             ids = (np.arange(n_boxes) + box_index).astype('uint8')
             box_index += n_boxes
@@ -195,9 +225,9 @@ class AggQuadTree(Scanline):
 
             shp_boxes1 = box(boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3])
             shp_boxes = [box(x0, y0, x1, y1) for x0, y0, x1, y1 in boxes]
-            print(shp_boxes[0])
-            print(shp_boxes1[0])
-            print(boxes[0])
+            # print(shp_boxes[0])
+            # print(shp_boxes1[0])
+            # print(boxes[0])
             if level == self.max_depth:
                 
                 vector_layer = gpd.GeoDataFrame(
@@ -217,12 +247,12 @@ class AggQuadTree(Scanline):
                 data = raster.read(window=win, masked=True)
                 data = data[0]
                 data = data[~data.mask]
-                print(f"Data shape: {data.shape}")
+                # print(f"Data shape: {data.shape}")
 
                 masking_method = Masking()
                 aggregates = masking_method(raster, vector_layer, self.stats)
                 aggregates = np.array(aggregates)
-                print(f"Aggregates count: {aggregates[0]['count']}")
+                # print(f"Aggregates count: {aggregates[0]['count']}")
             else:
                 # use self._combine_stats to combine the stats of the previous level
                 # run combine over the previous_aggregates using previous_ids
@@ -272,7 +302,7 @@ class AggQuadTree(Scanline):
         while len(nodes) > 0:
             node = nodes.pop(0)
             if node.is_contained_in_geom(geom):
-                print(f"Fully conained node")
+                # print(f"Fully conained node")
 
                 # add the entire node to the mask
                 win = rio.windows.from_bounds(
@@ -300,7 +330,7 @@ class AggQuadTree(Scanline):
                         nodes.remove(n)
             else:
                 if node.is_leaf():
-                    print(f"Not contained leaf")
+                    # print(f"Not contained leaf")
                     # is leaf but only intersects the geom
                     intersection_geom = node.box.intersection(geom)
                     if intersection_geom.is_empty:
@@ -395,11 +425,13 @@ def plot_masks(raster, geom, my_mask, window):
     ax[1].set_title('Correct Mask')
     ax[2].imshow(my_mask.astype(int) - correct_mask.astype(int), cmap='gray')
     ax[2].set_title('Difference')
+    plt.show()
+    print('stop')
     # add colorbar to the first two plots
     
     # plot difference between the two masks
     # mask - correct_mask
-    print('done')
+    # print('done')
 
     
 

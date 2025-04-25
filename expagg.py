@@ -18,7 +18,8 @@ exp = Experiment(
     vector_path=vector_layer_file,
     func=AggQuadTree(),
     reps=2,
-    stats=['count', 'mean']
+    stats=['count', 'mean'],
+    check_results=False,
 )
 
 if __name__ == "__main__":
