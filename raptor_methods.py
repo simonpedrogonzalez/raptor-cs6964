@@ -142,6 +142,229 @@ class Scanline(ZonalStatMethod):
 
 
 
+class Scanline2(ZonalStatMethod):
+
+    __name__ = "Scanline2"
+
+    def __init__(self):
+        super().__init__()
+    
+    def _compute_scanline_intersections(self, y: float, x0: float, x1: float, feature) -> List[float]:
+        
+        geom = feature
+
+        # Create a horizontal line and get intersections
+        scanline = LineString([Point(x0, y), Point(x1, y)])
+
+        intersection = scanline.intersection(geom)
+        if intersection.is_empty:
+            return []
+
+        # Handle different types of intersections
+        if intersection.geom_type == 'Point':
+            return [intersection.x]
+        elif intersection.geom_type == 'MultiPoint':
+            return sorted([p.x for p in intersection])
+        elif intersection.geom_type == 'LineString':
+            return sorted([intersection.coords[0][0], intersection.coords[-1][0]])
+        elif intersection.geom_type == 'MultiLineString':
+            xs = []
+            for line in intersection.geoms:
+                xs.extend([line.coords[0][0], line.coords[-1][0]])
+            return sorted(xs)
+        raise ValueError("Unexpected intersection geometry")
+    
+    def _process_scanline(
+        self, y: float, x0_init, x1_init, all_intersections: List[List[float]], raster: rio.DatasetReader,
+        mask: np.ndarray = None, row_in_mask=None, # Debugging code mask is window of all features
+        ) -> List[Dict[str, float]]:
+        """Returns the 1 row statistics for the scanline intersections.
+        """
+
+        row_results = []
+
+        # Process pairs of intersections
+        row, start_col_init = rio.transform.rowcol(raster.transform, x0_init, y)
+        _, end_col_init = rio.transform.rowcol(raster.transform, x1_init, y)
+        row_window = rio.windows.Window(
+            col_off=start_col_init,
+            row_off=row,
+            width=end_col_init - start_col_init,
+            height=1
+        )
+        data = raster.read(1, window=row_window, masked=True)[0]
+        
+        row_results = []
+
+        for j, intersections in enumerate(all_intersections):
+            # get the poly intersections
+            poly_result = []
+            for i in range(0, len(intersections), 2):
+                if i + 1 >= len(intersections):
+                    break
+                # Convert start and end points to pixel coordinates
+                x0, x1 = intersections[i], intersections[i + 1]
+                
+                # Start and end cols in pixel indexes relative to the raster
+                _, start_col = rio.transform.rowcol(raster.transform, x0, y)
+                start_col = start_col - start_col_init
+                _, end_col = rio.transform.rowcol(raster.transform, x1, y)
+                end_col = end_col - start_col_init
+
+                # if 0 <= row < raster.height:
+                    # Process pixels between intersections
+                pixel_values = data[start_col:end_col].flatten()
+                if len(pixel_values) > 0:
+                    poly_result.append(pixel_values)
+
+                # Debugging code
+                # row is the row in the raster
+                # i need row in all_features mask
+                mask[row_in_mask, start_col:end_col] = j+1
+                # End Debugging code
+
+            if len(poly_result) > 0:
+                row_results.append(np.ma.concatenate(poly_result))
+            else:
+                row_results.append([]) # empty list
+
+        return row_results, mask
+
+
+    def _precomputations(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
+
+        # get window for the entire features, that is, the bounding box for all features
+        total_bounds = features.total_bounds
+        window = rio.windows.from_bounds(
+            *total_bounds,
+            transform=raster.transform
+        )
+
+        row_start, row_end = window.row_off, window.row_off + window.height
+        row_start, row_end = int(np.floor(row_start)), int(np.ceil(row_end))
+        col_start, col_end = window.col_off, window.col_off + window.width
+        col_start, col_end = int(np.floor(col_start)), int(np.ceil(col_end))
+        w_height = int(np.ceil(window.height))
+        w_width = int(np.ceil(window.width))
+
+        x0 = (raster.transform * (col_start - 1, 0))[0]
+        x1 = (raster.transform * (col_end, 0))[0]
+
+        results = []
+
+        # Debugging code
+        global_mask = np.zeros((w_height+1, w_width), dtype=int)
+
+        for row in range(row_start, row_end + 1):  
+            y = (raster.transform * (0, row))[1]
+            row_intersections = []
+            any_intersection = False
+            for i, feature in enumerate(features.geometry):
+                f_intersections = self._compute_scanline_intersections(y, x0, x1, feature)
+                if len(f_intersections) > 0:
+                    any_intersection = True
+                row_intersections.append(f_intersections)
+            
+            if any_intersection:
+                row_results, global_mask = self._process_scanline(
+                    y, x0, x1, row_intersections, raster,
+                    global_mask, row - row_start # debugging
+                )
+                results.append(row_results)
+
+        # Debugging code
+        # import matplotlib.pyplot as plt
+
+        # plot mask
+        # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+        # ax.imshow(global_mask, cmap='inferno')
+        # ax.set_title('Global Mask')
+        # plt.savefig('global_mask.png')
+        # plt.close()
+        # end of debugging code
+
+        # combine partials but geometry wise
+        per_feature_results = []
+        for i in range(len(features.geometry)):
+            # get all results for this feature
+            feature_results = [r[i] for r in results]
+            # combine the results
+            per_feature_results.append(self._compute_stats_from_masked_array(
+                np.ma.concatenate(feature_results)
+            ))
+
+        # Debugging code
+        from raster_methods import Masking
+        m = Masking()
+        ref_mask = np.zeros_like(global_mask, dtype=int)
+        for i in range(len(features.geometry)):
+            # get all results for this feature
+            feature = features.geometry[i]
+            fmask = m.mask(feature, raster, window)
+            # add a 0 row at the end of fmask
+            fmask = np.insert(fmask, 0, 0, axis=0)
+            ref_mask[fmask] = i+1
+        # import matplotlib.pyplot as plt
+        # diff_mask = global_mask - ref_mask
+        # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+        # ax.imshow(diff_mask, cmap='grays')
+        # ax.set_title('Difference Mask')
+        # plt.savefig('diff_mask.png')
+        # plt.close()
+        # end of debugging code    
+        
+        self.results = per_feature_results
+    
+    def _run(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
+        self._precomputations(features, raster)
+        return self.results
+
+    # def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
+
+    #     # just fetch the results
+    #     return self.results
+
+
+
+def test():
+    from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
+    from reference import reference_method
+    ag = Scanline2()
+    vector_layer_file = f'{VECTOR_DATA_PATH}/cb_2018_us_state_20m_filtered.shp'
+    raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR_resampled_x4.tif'
+
+    # test_raster()
+    # raster_layer_file = f'{RASTER_DATA_PATH}/test.tif'
+    r1 = ag(raster_layer_file, vector_layer_file, ['count'])
+
+    rlow, rhigh = reference_method(raster_layer_file, vector_layer_file, ['count'])
+
+    for i in range(len(r1)):
+        r_c = r1[i]['count']
+        r_l = rlow[i]['count']
+        r_h = rhigh[i]['count']
+        print(r_c-r_l, r_c-r_h)
+
+
+
+    print('done')
+
+
+
+# test()
+
+
+
+
+
+
+
+
+
+
+
+
+
 class Node():
     def __init__(self, _id, parent_id, level, _box, stats, max_depth):
         self.id = _id

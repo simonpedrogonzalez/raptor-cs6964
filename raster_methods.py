@@ -2,6 +2,7 @@ from zone_stat_method import ZonalStatMethod
 import rasterio as rio
 import geopandas as gpd
 import shapely as shp
+import numpy as np
 
 class Masking(ZonalStatMethod):
 
@@ -13,10 +14,14 @@ class Masking(ZonalStatMethod):
     def mask(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
         """Create the mask used for the zonal statistics, useful for debugging.
         """
-
+        if isinstance(feature, gpd.GeoDataFrame):
+            feature = feature.geometry[0]
         mask = rio.features.rasterize(
-            [(shp.geometry.mapping(feature.geometry[0]), 1)],
-            out_shape=(window.height, window.width),
+            [(shp.geometry.mapping(feature), 1)],
+            out_shape=(
+                int(np.ceil(window.height)),
+                int(np.ceil(window.width)),    
+            ),
             transform=rio.windows.transform(window, raster.transform),
             fill=0,
             dtype='uint8'
