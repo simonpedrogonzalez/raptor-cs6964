@@ -1,0 +1,98 @@
+Timer unit: 1e-06 s
+
+Total time: 1.54443 s
+File: /Users/u1528314/Documents/raptor-cs6964/raptor_methods.py
+Function: _compute_stats at line 296
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   296                                               @line_profiler.profile
+   297                                               def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
+   298                                           
+   299                                                   # Get all intersecting nodes, sorted from root to leaves
+   300       147       1490.0     10.1      0.1          window_bounds = rio.windows.bounds(window, raster.transform)
+   301       147     102747.0    699.0      6.7          nodes = list(self.idx.intersection(window_bounds, objects=True))[::-1]
+   302      3915       1004.0      0.3      0.1          nodes = [node.object for node in nodes]
+   303       147      12855.0     87.4      0.8          geom = feature.geometry[0]
+   304                                           
+   305                                                   # Debugging code
+   306                                                   # global_mask = np.zeros((window.height, window.width), dtype=bool)
+   307                                           
+   308       147         34.0      0.2      0.0          partials = []
+   309      3915       1537.0      0.4      0.1          while len(nodes) > 0:
+   310      3768       2619.0      0.7      0.2              node = nodes.pop(0)
+   311      3768      39530.0     10.5      2.6              if node.is_contained_in_geom(geom):
+   312                                                           # print(f"Fully conained node")
+   313                                           
+   314                                                           # add the entire node to the mask
+   315       486       4850.0     10.0      0.3                  win = rio.windows.from_bounds(
+   316       162        796.0      4.9      0.1                      *node.box.bounds,
+   317       162        258.0      1.6      0.0                      transform=raster.transform
+   318                                                           )
+   319                                                           # Calculate the overlap of the node's window relative to the main processing window
+   320                                                           # row_start = int(win.row_off - window.row_off)
+   321                                                           # row_end   = int(row_start + win.height)
+   322                                                           # col_start = int(win.col_off - window.col_off)
+   323                                                           # col_end   = int(col_start + win.width)
+   324                                           
+   325                                                           # # Update global mask
+   326                                                           # global_mask[row_start:row_end, col_start:col_end] = True
+   327                                                           # i want here to set true in the global_mask, which
+   328                                                           # is inside the window
+   329                                                           # end of debugging code
+   330                                           
+   331       162         56.0      0.3      0.0                  partials.append(node.stats)
+   332       162         69.0      0.4      0.0                  if node.is_leaf():
+   333       153         17.0      0.1      0.0                      continue
+   334                                                           # remove all children from the list
+   335       180         34.0      0.2      0.0                  for n in nodes:
+   336       171         26.0      0.2      0.0                      if n.parent_id == node.id:
+   337                                                                   nodes.remove(n)
+   338                                                       else:
+   339      3606       1326.0      0.4      0.1                  if node.is_leaf():
+   340                                                               # print(f"Not contained leaf")
+   341                                                               # is leaf but only intersects the geom
+   342      1806      78682.0     43.6      5.1                      intersection_geom = node.box.intersection(geom)
+   343      1806       5502.0      3.0      0.4                      if intersection_geom.is_empty:
+   344                                                                   # means that both the node intersects
+   345                                                                   # the window but not the feature
+   346       360         46.0      0.1      0.0                          continue
+   347      4338      46333.0     10.7      3.0                      win = rio.windows.from_bounds(
+   348      1446       7324.0      5.1      0.5                          *intersection_geom.bounds,
+   349      1446       2463.0      1.7      0.2                          transform=raster.transform
+   350                                                               )
+   351      1446       2532.0      1.8      0.2                      out_shape = (int(np.ceil(win.height)), int(np.ceil(win.width)))
+   352      4338     461472.0    106.4     29.9                      mask = rio.features.rasterize(
+   353      1446        269.0      0.2      0.0                          [(intersection_geom, 1)],
+   354      1446       1620.0      1.1      0.1                          out_shape=(int(np.ceil(win.height)), int(np.ceil(win.width))),
+   355      1446       9998.0      6.9      0.6                          transform=rio.windows.transform(win, raster.transform),
+   356      1446        198.0      0.1      0.0                          fill=0,
+   357      1446        150.0      0.1      0.0                          dtype='uint8'
+   358      1446       7415.0      5.1      0.5                      ).astype(bool)
+   359      1446     436231.0    301.7     28.2                      data = raster.read(window=win, out_shape=out_shape, masked=True)[0]
+   360      1446     124947.0     86.4      8.1                      data = data[mask]
+   361      1446     183066.0    126.6     11.9                      partials.append(self._compute_stats_from_masked_array(data))
+   362                                           
+   363                                                               # add the mask to the global mask
+   364                                                               
+   365                                                               # map into global mask
+   366                                                               # row_start = int(win.row_off - np.ceil(window.row_off))
+   367                                                               # col_start = int(win.col_off - np.ceil(window.col_off))
+   368                                                               # h, w = mask.shape
+   369                                                               # global_mask[row_start:row_start + h, col_start:col_start + w] = mask
+   370                                                               # assert global_mask.shape[0] >= row_start + h
+   371                                                               # assert global_mask.shape[1] >= col_start + w
+   372                                           
+   373                                                               # end of debugging code
+   374                                           
+   375                                                           else:
+   376                                                               # not completely inside but has children, so the children
+   377                                                               # will be analyzed in next iterations
+   378      1800        185.0      0.1      0.0                      continue
+   379                                                   
+   380                                                   # check global mask
+   381                                                   # plot_masks(raster, feature, global_mask, window)
+   382                                           
+   383                                                   # combine the partials
+   384       147       6747.0     45.9      0.4          return self._combine_stats(partials)
+

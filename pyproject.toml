@@ -8,6 +8,7 @@ dependencies = [
     "debugpy>=1.8.13",
     "geocube>=0.7.0",
     "geopandas>=1.0.1",
+    "line-profiler>=4.2.0",
     "matplotlib>=3.10.0",
     "memory-profiler>=0.61.0",
     "psutil>=7.0.0",

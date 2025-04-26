@@ -15,7 +15,6 @@ from raster_methods import Masking
 from rasterstats import zonal_stats
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import line_profiler
 
 class Scanline(ZonalStatMethod):
 
@@ -293,7 +292,6 @@ class AggQuadTree(Scanline):
 
         self.idx = idx
 
-    @line_profiler.profile
     def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
 
         # Get all intersecting nodes, sorted from root to leaves

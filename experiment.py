@@ -2,7 +2,7 @@ from constants import RESULTS_PATH
 import pandas as pd
 import gc
 import tqdm
-from profile import profile
+from profiling_tools import profile
 from reference import reference_method, result_within_tolerance
 import datetime
 from file_utils import describe_raster_file, describe_vector_file, validate_raster_vector_compatibility
@@ -11,8 +11,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 class Experiment:
-    def __init__(self, raster_path, vector_path, func, reps=1, stats=['count', 'mean'],
-    check_results=False, plot_results=False):
+    def __init__(self,
+    raster_path, vector_path, func, reps=1, stats=['count', 'mean'],
+    check_results=False, plot_results=False,
+    csv_output=True, json_output=False,
+    ):
         self.raster_path = raster_path
         self.vector_path = vector_path
         self.func = func
@@ -21,6 +24,8 @@ class Experiment:
         self.check_results = check_results
         self.plot_results = plot_results
         self.result_files = None
+        self.csv_output = csv_output
+        self.json_output = json_output
 
 
     def _reset(self):
@@ -43,6 +48,8 @@ class Experiment:
         metrics_df = pd.DataFrame(metric_list)
         metrics_summary = metrics_df.describe()
 
+        self.result_files = {}
+
         if self.plot_results:
             # boxplot per metric in the same figure
             n_metrics = len(metrics_df.columns)
@@ -53,6 +60,7 @@ class Experiment:
             plt.tight_layout()
             plt.savefig(f"{RESULTS_PATH}/boxplot_{now_string}.png")
             plt.clf()
+            self.result_files["boxplot"] = f"{RESULTS_PATH}/boxplot_{now_string}.png"
             # lineplot per metric
             fig, axs = plt.subplots(n_metrics, 1, figsize=(5, 10))
             for i, col in enumerate(metrics_df.columns):
@@ -67,6 +75,7 @@ class Experiment:
             plt.savefig(f"{RESULTS_PATH}/lineplot_{now_string}.png")
             plt.clf()
             plt.close()
+            self.result_files["lineplot"] = f"{RESULTS_PATH}/lineplot_{now_string}.png"
 
         vector_summary = describe_vector_file(self.vector_path)
         raster_summary = describe_raster_file(self.raster_path)
@@ -81,38 +90,33 @@ class Experiment:
             "metrics": metrics_summary.to_dict()
         }
 
-        # write a json file with the results
-        res_path = f"{RESULTS_PATH}/{exp_name}"
-        with open(res_path, "w") as f:
-            json.dump(res, f)
+        if self.json_output:
+            # write a json file with the results
+            res_path = f"{RESULTS_PATH}/{exp_name}"
+            with open(res_path, "w") as f:
+                json.dump(res, f)
+            self.result_files["json"] = res_path
+        if self.csv_output:
+            # write csv with raw data adding function name, raster and vector name and metrics
+            raw_data["func"] = self.func.__name__
+            raw_data["raster"] = raster_summary["name"]
+            raw_data["vector"] = vector_summary["name"]
+            for k,v in raster_summary.items():
+                if k != "name":
+                    if k == "shape":
+                        v = str(v)
+                    raw_data["raster_" + k] = v
+            for k,v in vector_summary.items():
+                if k != "name":
+                    raw_data["vector_" + k] = v
+            
+            for k,v in self.func._get_params().items():
+                raw_data["func_param_" + k] = v
 
-        # write csv with raw data adding function name, raster and vector name and metrics
-        raw_data["func"] = self.func.__name__
-        raw_data["raster"] = raster_summary["name"]
-        raw_data["vector"] = vector_summary["name"]
-        for k,v in raster_summary.items():
-            if k != "name":
-                if k == "shape":
-                    v = str(v)
-                raw_data["raster_" + k] = v
-        for k,v in vector_summary.items():
-            if k != "name":
-                raw_data["vector_" + k] = v
-        
-        for k,v in self.func._get_params().items():
-            raw_data["func_param_" + k] = v
+            raw_data.to_csv(f"{RESULTS_PATH}/exp_{now_string}.csv", index=False)
+            self.result_files["csv"] = f"{RESULTS_PATH}/exp_{now_string}.csv"
 
-        raw_data.to_csv(f"{RESULTS_PATH}/exp_{now_string}.csv", index=False)
-
-
-        self.result_files = {
-            "json": res_path,
-            "csv": f"{RESULTS_PATH}/exp_{now_string}.csv",
-            "boxplot": f"{RESULTS_PATH}/boxplot_{now_string}.png",
-            "lineplot": f"{RESULTS_PATH}/lineplot_{now_string}.png"
-        }
-
-        print(f"Results written to {res_path}")
+        print(f"Results written to {self.result_files}")
 
     def run(self):
 

@@ -2,7 +2,6 @@ from constants import RESULTS_PATH
 import pandas as pd
 import gc
 import tqdm
-from profile import profile
 from reference import reference_method, result_within_tolerance
 import datetime
 from file_utils import describe_raster_file, describe_vector_file, validate_raster_vector_compatibility
@@ -20,7 +19,7 @@ class ExperimentAggregator:
         for exp in self.exp_list:
             exp.run()
             self.results_files.append(exp.result_files)
-        # self._write_results()
+        self._write_results()
 
     def _write_results(self):
 
@@ -62,7 +61,13 @@ class ExperimentAggregator:
         width = 8
         height = 5
         run_name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
+        # create a directory for the results
+        dir_name = f"{RESULTS_PATH}/{run_name}"
+        # create the directory if it doesn't exist
+        import os
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)
+        
         for metric in metrics:
             # create a boxplot for this metric comparing
             # the different comparison groups
@@ -79,7 +84,7 @@ class ExperimentAggregator:
             ax.set_xlabel(metric)
             plt.yticks(rotation=0)  # (Optional) keep group labels readable
             plt.tight_layout()
-            plt.savefig(f"{RESULTS_PATH}/boxplot_{run_name}_{metric}.png")
+            plt.savefig(f"{dir_name}/{metric}.png")
             plt.clf()
             plt.close()
 
@@ -95,5 +100,5 @@ def test():
     } for file in expagg.results_files]
     expagg._write_results()
 
-test()
+# test()
     

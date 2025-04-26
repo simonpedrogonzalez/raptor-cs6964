@@ -2,7 +2,7 @@ import numpy as np
 import geopandas as gpd
 import rasterio as rio
 from rasterio.features import geometry_window
-
+import line_profiler
 
 
 class ZonalStatMethod():
@@ -101,6 +101,7 @@ class ZonalStatMethod():
         """
         raise NotImplementedError
 
+    # @line_profiler.profile
     def _run(self, vector_layer: gpd.GeoDataFrame, raster: rio.DatasetReader):
         results = []
         self._precomputations(vector_layer, raster)
