@@ -155,7 +155,7 @@ class Scanline2(ZonalStatMethod):
         geom = feature
 
         # Create a horizontal line and get intersections
-        scanline = LineString([Point(x0, y), Point(x1, y)])
+        scanline = LineString([(x0, y), (x1, y)])
 
         intersection = scanline.intersection(geom)
         if intersection.is_empty:
