@@ -149,6 +149,7 @@ class Scanline2(ZonalStatMethod):
     def __init__(self):
         super().__init__()
     
+    @line_profiler.profile
     def _compute_scanline_intersections(self, y: float, x0: float, x1: float, feature) -> List[float]:
         
         geom = feature
@@ -174,6 +175,7 @@ class Scanline2(ZonalStatMethod):
             return sorted(xs)
         raise ValueError("Unexpected intersection geometry")
     
+    @line_profiler.profile
     def _process_scanline(
         self, y: float, x0_init, x1_init, all_intersections: List[List[float]], raster: rio.DatasetReader,
         mask: np.ndarray = None, row_in_mask=None, # Debugging code mask is window of all features
@@ -230,7 +232,7 @@ class Scanline2(ZonalStatMethod):
 
         return row_results, mask
 
-
+    @line_profiler.profile
     def _precomputations(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
 
         # get window for the entire features, that is, the bounding box for all features
@@ -516,7 +518,6 @@ class AggQuadTree(Scanline):
 
         self.idx = idx
 
-    @line_profiler.profile
     def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
 
         # Get all intersecting nodes, sorted from root to leaves
