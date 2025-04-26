@@ -1,98 +1,188 @@
 Timer unit: 1e-06 s
 
-Total time: 1.54443 s
+Total time: 60.3856 s
 File: /Users/u1528314/Documents/raptor-cs6964/raptor_methods.py
-Function: _compute_stats at line 296
+Function: _compute_scanline_intersections at line 152
 
 Line #      Hits         Time  Per Hit   % Time  Line Contents
 ==============================================================
-   296                                               @line_profiler.profile
-   297                                               def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
-   298                                           
-   299                                                   # Get all intersecting nodes, sorted from root to leaves
-   300       147       1490.0     10.1      0.1          window_bounds = rio.windows.bounds(window, raster.transform)
-   301       147     102747.0    699.0      6.7          nodes = list(self.idx.intersection(window_bounds, objects=True))[::-1]
-   302      3915       1004.0      0.3      0.1          nodes = [node.object for node in nodes]
-   303       147      12855.0     87.4      0.8          geom = feature.geometry[0]
-   304                                           
-   305                                                   # Debugging code
-   306                                                   # global_mask = np.zeros((window.height, window.width), dtype=bool)
-   307                                           
-   308       147         34.0      0.2      0.0          partials = []
-   309      3915       1537.0      0.4      0.1          while len(nodes) > 0:
-   310      3768       2619.0      0.7      0.2              node = nodes.pop(0)
-   311      3768      39530.0     10.5      2.6              if node.is_contained_in_geom(geom):
-   312                                                           # print(f"Fully conained node")
-   313                                           
-   314                                                           # add the entire node to the mask
-   315       486       4850.0     10.0      0.3                  win = rio.windows.from_bounds(
-   316       162        796.0      4.9      0.1                      *node.box.bounds,
-   317       162        258.0      1.6      0.0                      transform=raster.transform
-   318                                                           )
-   319                                                           # Calculate the overlap of the node's window relative to the main processing window
-   320                                                           # row_start = int(win.row_off - window.row_off)
-   321                                                           # row_end   = int(row_start + win.height)
-   322                                                           # col_start = int(win.col_off - window.col_off)
-   323                                                           # col_end   = int(col_start + win.width)
-   324                                           
-   325                                                           # # Update global mask
-   326                                                           # global_mask[row_start:row_end, col_start:col_end] = True
-   327                                                           # i want here to set true in the global_mask, which
-   328                                                           # is inside the window
-   329                                                           # end of debugging code
-   330                                           
-   331       162         56.0      0.3      0.0                  partials.append(node.stats)
-   332       162         69.0      0.4      0.0                  if node.is_leaf():
-   333       153         17.0      0.1      0.0                      continue
-   334                                                           # remove all children from the list
-   335       180         34.0      0.2      0.0                  for n in nodes:
-   336       171         26.0      0.2      0.0                      if n.parent_id == node.id:
-   337                                                                   nodes.remove(n)
-   338                                                       else:
-   339      3606       1326.0      0.4      0.1                  if node.is_leaf():
-   340                                                               # print(f"Not contained leaf")
-   341                                                               # is leaf but only intersects the geom
-   342      1806      78682.0     43.6      5.1                      intersection_geom = node.box.intersection(geom)
-   343      1806       5502.0      3.0      0.4                      if intersection_geom.is_empty:
-   344                                                                   # means that both the node intersects
-   345                                                                   # the window but not the feature
-   346       360         46.0      0.1      0.0                          continue
-   347      4338      46333.0     10.7      3.0                      win = rio.windows.from_bounds(
-   348      1446       7324.0      5.1      0.5                          *intersection_geom.bounds,
-   349      1446       2463.0      1.7      0.2                          transform=raster.transform
-   350                                                               )
-   351      1446       2532.0      1.8      0.2                      out_shape = (int(np.ceil(win.height)), int(np.ceil(win.width)))
-   352      4338     461472.0    106.4     29.9                      mask = rio.features.rasterize(
-   353      1446        269.0      0.2      0.0                          [(intersection_geom, 1)],
-   354      1446       1620.0      1.1      0.1                          out_shape=(int(np.ceil(win.height)), int(np.ceil(win.width))),
-   355      1446       9998.0      6.9      0.6                          transform=rio.windows.transform(win, raster.transform),
-   356      1446        198.0      0.1      0.0                          fill=0,
-   357      1446        150.0      0.1      0.0                          dtype='uint8'
-   358      1446       7415.0      5.1      0.5                      ).astype(bool)
-   359      1446     436231.0    301.7     28.2                      data = raster.read(window=win, out_shape=out_shape, masked=True)[0]
-   360      1446     124947.0     86.4      8.1                      data = data[mask]
-   361      1446     183066.0    126.6     11.9                      partials.append(self._compute_stats_from_masked_array(data))
-   362                                           
-   363                                                               # add the mask to the global mask
-   364                                                               
-   365                                                               # map into global mask
-   366                                                               # row_start = int(win.row_off - np.ceil(window.row_off))
-   367                                                               # col_start = int(win.col_off - np.ceil(window.col_off))
-   368                                                               # h, w = mask.shape
-   369                                                               # global_mask[row_start:row_start + h, col_start:col_start + w] = mask
-   370                                                               # assert global_mask.shape[0] >= row_start + h
-   371                                                               # assert global_mask.shape[1] >= col_start + w
-   372                                           
-   373                                                               # end of debugging code
-   374                                           
-   375                                                           else:
-   376                                                               # not completely inside but has children, so the children
-   377                                                               # will be analyzed in next iterations
-   378      1800        185.0      0.1      0.0                      continue
-   379                                                   
-   380                                                   # check global mask
-   381                                                   # plot_masks(raster, feature, global_mask, window)
-   382                                           
-   383                                                   # combine the partials
-   384       147       6747.0     45.9      0.4          return self._combine_stats(partials)
+   152                                               @line_profiler.profile
+   153                                               def _compute_scanline_intersections(self, y: float, x0: float, x1: float, feature) -> List[float]:
+   154                                                   
+   155   1427958     121609.0      0.1      0.2          geom = feature
+   156                                           
+   157                                                   # Create a horizontal line and get intersections
+   158   1427958   31727198.0     22.2     52.5          scanline = LineString([Point(x0, y), Point(x1, y)])
+   159                                           
+   160   1427958   20742726.0     14.5     34.4          intersection = scanline.intersection(geom)
+   161   1427958    3087950.0      2.2      5.1          if intersection.is_empty:
+   162   1195110     213895.0      0.2      0.4              return []
+   163                                           
+   164                                                   # Handle different types of intersections
+   165    232848     549944.0      2.4      0.9          if intersection.geom_type == 'Point':
+   166                                                       return [intersection.x]
+   167    232848     506606.0      2.2      0.8          elif intersection.geom_type == 'MultiPoint':
+   168                                                       return sorted([p.x for p in intersection])
+   169    232848     493003.0      2.1      0.8          elif intersection.geom_type == 'LineString':
+   170    201147    1820457.0      9.1      3.0              return sorted([intersection.coords[0][0], intersection.coords[-1][0]])
+   171     31701      67274.0      2.1      0.1          elif intersection.geom_type == 'MultiLineString':
+   172     31701       3769.0      0.1      0.0              xs = []
+   173    105687     394835.0      3.7      0.7              for line in intersection.geoms:
+   174     73986     632749.0      8.6      1.0                  xs.extend([line.coords[0][0], line.coords[-1][0]])
+   175     31701      23578.0      0.7      0.0              return sorted(xs)
+   176                                                   raise ValueError("Unexpected intersection geometry")
+
+Total time: 21.2882 s
+File: /Users/u1528314/Documents/raptor-cs6964/raptor_methods.py
+Function: _process_scanline at line 178
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   178                                               @line_profiler.profile
+   179                                               def _process_scanline(
+   180                                                   self, y: float, x0_init, x1_init, all_intersections: List[List[float]], raster: rio.DatasetReader,
+   181                                                   mask: np.ndarray = None, row_in_mask=None, # Debugging code mask is window of all features
+   182                                                   ) -> List[Dict[str, float]]:
+   183                                                   """Returns the 1 row statistics for the scanline intersections.
+   184                                                   """
+   185                                           
+   186     29136       3333.0      0.1      0.0          row_results = []
+   187                                           
+   188                                                   # Process pairs of intersections
+   189     29136     675516.0     23.2      3.2          row, start_col_init = rio.transform.rowcol(raster.transform, x0_init, y)
+   190     29136     504297.0     17.3      2.4          _, end_col_init = rio.transform.rowcol(raster.transform, x1_init, y)
+   191     58272      81524.0      1.4      0.4          row_window = rio.windows.Window(
+   192     29136       3324.0      0.1      0.0              col_off=start_col_init,
+   193     29136       3770.0      0.1      0.0              row_off=row,
+   194     29136       5956.0      0.2      0.0              width=end_col_init - start_col_init,
+   195     29136       3168.0      0.1      0.0              height=1
+   196                                                   )
+   197     29136    3453128.0    118.5     16.2          data = raster.read(1, window=row_window, masked=True)[0]
+   198                                                   
+   199     29136       5994.0      0.2      0.0          row_results = []
+   200                                           
+   201   1456800     275856.0      0.2      1.3          for j, intersections in enumerate(all_intersections):
+   202                                                       # get the poly intersections
+   203   1427664     190103.0      0.1      0.9              poly_result = []
+   204   1702797     390145.0      0.2      1.8              for i in range(0, len(intersections), 2):
+   205    275133      39734.0      0.1      0.2                  if i + 1 >= len(intersections):
+   206                                                               break
+   207                                                           # Convert start and end points to pixel coordinates
+   208    275133      34292.0      0.1      0.2                  x0, x1 = intersections[i], intersections[i + 1]
+   209                                                           
+   210                                                           # Start and end cols in pixel indexes relative to the raster
+   211    275133    4946499.0     18.0     23.2                  _, start_col = rio.transform.rowcol(raster.transform, x0, y)
+   212    275133      47379.0      0.2      0.2                  start_col = start_col - start_col_init
+   213    275133    4073698.0     14.8     19.1                  _, end_col = rio.transform.rowcol(raster.transform, x1, y)
+   214    275133      41927.0      0.2      0.2                  end_col = end_col - start_col_init
+   215                                           
+   216                                                           # if 0 <= row < raster.height:
+   217                                                               # Process pixels between intersections
+   218    275133    3800505.0     13.8     17.9                  pixel_values = data[start_col:end_col].flatten()
+   219    275133      51846.0      0.2      0.2                  if len(pixel_values) > 0:
+   220    274935      37878.0      0.1      0.2                      poly_result.append(pixel_values)
+   221                                           
+   222                                                           # Debugging code
+   223                                                           # row is the row in the raster
+   224                                                           # i need row in all_features mask
+   225    275133     707926.0      2.6      3.3                  mask[row_in_mask, start_col:end_col] = j+1
+   226                                                           # End Debugging code
+   227                                           
+   228   1427664     181470.0      0.1      0.9              if len(poly_result) > 0:
+   229    232830    1578831.0      6.8      7.4                  row_results.append(np.ma.concatenate(poly_result))
+   230                                                       else:
+   231   1194834     117835.0      0.1      0.6                  row_results.append([]) # empty list
+   232                                           
+   233     29136      32301.0      1.1      0.2          return row_results, mask
+
+Total time: 112.553 s
+File: /Users/u1528314/Documents/raptor-cs6964/raptor_methods.py
+Function: _precomputations at line 235
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   235                                               @line_profiler.profile
+   236                                               def _precomputations(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
+   237                                           
+   238                                                   # get window for the entire features, that is, the bounding box for all features
+   239         3        946.0    315.3      0.0          total_bounds = features.total_bounds
+   240         9        411.0     45.7      0.0          window = rio.windows.from_bounds(
+   241         3          1.0      0.3      0.0              *total_bounds,
+   242         3         12.0      4.0      0.0              transform=raster.transform
+   243                                                   )
+   244                                           
+   245         3          3.0      1.0      0.0          row_start, row_end = window.row_off, window.row_off + window.height
+   246         3         20.0      6.7      0.0          row_start, row_end = int(np.floor(row_start)), int(np.ceil(row_end))
+   247         3          1.0      0.3      0.0          col_start, col_end = window.col_off, window.col_off + window.width
+   248         3          3.0      1.0      0.0          col_start, col_end = int(np.floor(col_start)), int(np.ceil(col_end))
+   249         3          2.0      0.7      0.0          w_height = int(np.ceil(window.height))
+   250         3          1.0      0.3      0.0          w_width = int(np.ceil(window.width))
+   251                                           
+   252         3         23.0      7.7      0.0          x0 = (raster.transform * (col_start - 1, 0))[0]
+   253         3          6.0      2.0      0.0          x1 = (raster.transform * (col_end, 0))[0]
+   254                                           
+   255         3          0.0      0.0      0.0          results = []
+   256                                           
+   257                                                   # Debugging code
+   258         3         45.0     15.0      0.0          global_mask = np.zeros((w_height+1, w_width), dtype=int)
+   259                                           
+   260     29145       9799.0      0.3      0.0          for row in range(row_start, row_end + 1):  
+   261     29142      81178.0      2.8      0.1              y = (raster.transform * (0, row))[1]
+   262     29142      21747.0      0.7      0.0              row_intersections = []
+   263     29142       3611.0      0.1      0.0              any_intersection = False
+   264   1457100    2101535.0      1.4      1.9              for i, feature in enumerate(features.geometry):
+   265   1427958   63497541.0     44.5     56.4                  f_intersections = self._compute_scanline_intersections(y, x0, x1, feature)
+   266   1427958     253557.0      0.2      0.2                  if len(f_intersections) > 0:
+   267    232848      29133.0      0.1      0.0                      any_intersection = True
+   268   1427958     220945.0      0.2      0.2                  row_intersections.append(f_intersections)
+   269                                                       
+   270     29142       4965.0      0.2      0.0              if any_intersection:
+   271     58272   22923264.0    393.4     20.4                  row_results, global_mask = self._process_scanline(
+   272     29136       4039.0      0.1      0.0                      y, x0, x1, row_intersections, raster,
+   273     29136       4136.0      0.1      0.0                      global_mask, row - row_start # debugging
+   274                                                           )
+   275     29136       5055.0      0.2      0.0                  results.append(row_results)
+   276                                           
+   277                                                   # Debugging code
+   278                                                   # import matplotlib.pyplot as plt
+   279                                           
+   280                                                   # plot mask
+   281                                                   # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+   282                                                   # ax.imshow(global_mask, cmap='inferno')
+   283                                                   # ax.set_title('Global Mask')
+   284                                                   # plt.savefig('global_mask.png')
+   285                                                   # plt.close()
+   286                                                   # end of debugging code
+   287                                           
+   288                                                   # combine partials but geometry wise
+   289         3          0.0      0.0      0.0          per_feature_results = []
+   290       150         92.0      0.6      0.0          for i in range(len(features.geometry)):
+   291                                                       # get all results for this feature
+   292   1427811     351487.0      0.2      0.3              feature_results = [r[i] for r in results]
+   293                                                       # combine the results
+   294       294     135795.0    461.9      0.1              per_feature_results.append(self._compute_stats_from_masked_array(
+   295       147    2199379.0  14961.8      2.0                  np.ma.concatenate(feature_results)
+   296                                                       ))
+   297                                           
+   298                                                   # Debugging code
+   299         3         11.0      3.7      0.0          from raster_methods import Masking
+   300         3         15.0      5.0      0.0          m = Masking()
+   301         3     500414.0 166804.7      0.4          ref_mask = np.zeros_like(global_mask, dtype=int)
+   302       150       1107.0      7.4      0.0          for i in range(len(features.geometry)):
+   303                                                       # get all results for this feature
+   304       147      11244.0     76.5      0.0              feature = features.geometry[i]
+   305       147   10666940.0  72564.2      9.5              fmask = m.mask(feature, raster, window)
+   306                                                       # add a 0 row at the end of fmask
+   307       147    3428812.0  23325.3      3.0              fmask = np.insert(fmask, 0, 0, axis=0)
+   308       147    6095726.0  41467.5      5.4              ref_mask[fmask] = i+1
+   309                                                   # import matplotlib.pyplot as plt
+   310                                                   # diff_mask = global_mask - ref_mask
+   311                                                   # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+   312                                                   # ax.imshow(diff_mask, cmap='grays')
+   313                                                   # ax.set_title('Difference Mask')
+   314                                                   # plt.savefig('diff_mask.png')
+   315                                                   # plt.close()
+   316                                                   # end of debugging code    
+   317                                                   
+   318         3        140.0     46.7      0.0          self.results = per_feature_results
 
