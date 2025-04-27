@@ -1,7 +1,7 @@
 from experiment import Experiment
 from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
 from reference import reference_method
-from raptor_methods import AggQuadTree, Scanline, Scanline2
+from raptor_methods import AggQuadTree, Scanline
 from raster_methods import Masking, Clipping, Masking2
 from vector_methods import NaivePointInPolygon, QSplit
 import time
@@ -27,7 +27,7 @@ exps = [
         Masking(),
         # Scanline(),
         # AggQuadTree(),
-        Scanline2(),
+        Scanline(),
     ]
 ]
 

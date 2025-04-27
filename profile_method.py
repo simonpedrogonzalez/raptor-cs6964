@@ -1,7 +1,7 @@
 from experiment import Experiment
 from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
 from reference import reference_method
-from raptor_methods import AggQuadTree, Scanline2
+from raptor_methods import AggQuadTree, Scanline
 
 vector_layer_file = f'{VECTOR_DATA_PATH}/cb_2018_us_state_20m_filtered.shp'
 raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR.tif'
