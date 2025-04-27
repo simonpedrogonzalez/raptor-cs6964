@@ -2,7 +2,7 @@ from experiment import Experiment
 from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
 from reference import reference_method
 from raptor_methods import AggQuadTree, Scanline, Scanline2
-from raster_methods import Masking, Clipping
+from raster_methods import Masking, Clipping, Masking2
 from vector_methods import NaivePointInPolygon, QSplit
 import time
 
@@ -23,6 +23,7 @@ exps = [
         reps=5,
     )
     for func in [
+        Masking2(),
         Masking(),
         # Scanline(),
         # AggQuadTree(),

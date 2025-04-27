@@ -212,7 +212,7 @@ class Scanline2(ZonalStatMethod):
                 x0 = coords[0][0]
                 x1 = coords[-1][0]
                 intersection_table.append((
-                    f_index, y_, x0, x1, 0, 0, 0
+                    f_index, y_, x0, x1
                 ))
 
         intersection_table = np.array(intersection_table)

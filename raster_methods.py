@@ -3,6 +3,23 @@ import rasterio as rio
 import geopandas as gpd
 import shapely as shp
 import numpy as np
+from rasterstats import zonal_stats
+
+
+class Masking2(ZonalStatMethod):
+
+    __name__ = "Masking2"
+
+    def __init__(self):
+        super().__init__()
+
+    def _run(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
+        return zonal_stats(
+            features,
+            self.raster_file_path,
+            stats=self.stats,
+            all_touched=True,
+        )
 
 class Masking(ZonalStatMethod):
 
