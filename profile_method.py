@@ -16,7 +16,7 @@ raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR.tif'
 exp = Experiment(
     raster_path=raster_layer_file,
     vector_path=vector_layer_file,
-    func=Scanline2(),
+    func=AggQuadTree(),
     reps=1
 )
 
