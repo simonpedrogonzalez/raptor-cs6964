@@ -8,7 +8,7 @@ import geopandas as gpd
 from shapely import Geometry, box
 import numpy as np
 import shapely as shp
-from shapely import Polygon, Point, LineString
+from shapely import Polygon, Point, LineString, MultiLineString
 from typing import List, Tuple, Dict
 from rtree import index
 from raster_methods import Masking
@@ -148,177 +148,156 @@ class Scanline2(ZonalStatMethod):
 
     def __init__(self):
         super().__init__()
-    
+
     @line_profiler.profile
-    def _compute_scanline_intersections(self, y: float, x0: float, x1: float, feature) -> List[float]:
+    def _precomputations2(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
         
-        geom = feature
 
-        # Create a horizontal line and get intersections
-        scanline = LineString([(x0, y), (x1, y)])
+        transform = raster.transform
 
-        intersection = scanline.intersection(geom)
-        if intersection.is_empty:
-            return []
-
-        # Handle different types of intersections
-        if intersection.geom_type == 'Point':
-            return [intersection.x]
-        elif intersection.geom_type == 'MultiPoint':
-            return sorted([p.x for p in intersection])
-        elif intersection.geom_type == 'LineString':
-            return sorted([intersection.coords[0][0], intersection.coords[-1][0]])
-        elif intersection.geom_type == 'MultiLineString':
-            xs = []
-            for line in intersection.geoms:
-                xs.extend([line.coords[0][0], line.coords[-1][0]])
-            return sorted(xs)
-        raise ValueError("Unexpected intersection geometry")
-    
-    @line_profiler.profile
-    def _process_scanline(
-        self, y: float, x0_init, x1_init, all_intersections: List[List[float]], raster: rio.DatasetReader,
-        mask: np.ndarray = None, row_in_mask=None, # Debugging code mask is window of all features
-        ) -> List[Dict[str, float]]:
-        """Returns the 1 row statistics for the scanline intersections.
-        """
-
-        row_results = []
-
-        # Process pairs of intersections
-        row, start_col_init = rio.transform.rowcol(raster.transform, x0_init, y)
-        _, end_col_init = rio.transform.rowcol(raster.transform, x1_init, y)
-        row_window = rio.windows.Window(
-            col_off=start_col_init,
-            row_off=row,
-            width=end_col_init - start_col_init,
-            height=1
-        )
-        data = raster.read(1, window=row_window, masked=True)[0]
+        def rows_to_ys(rows):
+            return (transform * (0, rows + 0.5))[1]
         
-        row_results = []
+        def rowcol_to_xy(rows, cols):
+            # coords of pixel centers
+            xs, ys = (transform * (cols + 0.5, rows + 0.5))
+            return xs, ys
 
-        for j, intersections in enumerate(all_intersections):
-            # get the poly intersections
-            poly_result = []
-            for i in range(0, len(intersections), 2):
-                if i + 1 >= len(intersections):
-                    break
-                # Convert start and end points to pixel coordinates
-                x0, x1 = intersections[i], intersections[i + 1]
-                
-                # Start and end cols in pixel indexes relative to the raster
-                _, start_col = rio.transform.rowcol(raster.transform, x0, y)
-                start_col = start_col - start_col_init
-                _, end_col = rio.transform.rowcol(raster.transform, x1, y)
-                end_col = end_col - start_col_init
-
-                # if 0 <= row < raster.height:
-                    # Process pixels between intersections
-                pixel_values = data[start_col:end_col].flatten()
-                if len(pixel_values) > 0:
-                    poly_result.append(pixel_values)
-
-                # Debugging code
-                # row is the row in the raster
-                # i need row in all_features mask
-                mask[row_in_mask, start_col:end_col] = j+1
-                # End Debugging code
-
-            if len(poly_result) > 0:
-                row_results.append(np.ma.concatenate(poly_result))
-            else:
-                row_results.append([]) # empty list
-
-        return row_results, mask
-
-    @line_profiler.profile
-    def _precomputations(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
+        def ys_to_rows(ys):
+            return ((~transform) * (np.zeros_like(ys), ys))[1].astype(int)
+        
+        def xy_to_rowcol(xs, ys):
+            # pixel in which the point is located
+            cols, rows = (~transform) * (xs, ys)
+            return np.floor(rows).astype(int), np.floor(cols).astype(int)
 
         # get window for the entire features, that is, the bounding box for all features
-        total_bounds = features.total_bounds
         window = rio.windows.from_bounds(
-            *total_bounds,
-            transform=raster.transform
+            *features.total_bounds,
+            transform=transform
         )
 
-        row_start, row_end = window.row_off, window.row_off + window.height
-        row_start, row_end = int(np.floor(row_start)), int(np.ceil(row_end))
-        col_start, col_end = window.col_off, window.col_off + window.width
-        col_start, col_end = int(np.floor(col_start)), int(np.ceil(col_end))
-        w_height = int(np.ceil(window.height))
-        w_width = int(np.ceil(window.width))
+        # Debugging code
+        # w_height = int(np.ceil(window.height))
+        # w_width = int(np.ceil(window.width))
+        # global_mask = np.zeros((w_height+1, w_width), dtype=int)
+        # End Debugging code
+
+        row_start, row_end = int(np.floor(window.row_off)), int(np.ceil(window.row_off + window.height))
+        col_start, col_end = int(np.floor(window.col_off)), int(np.ceil(window.col_off + window.width))
 
         x0 = (raster.transform * (col_start - 1, 0))[0]
         x1 = (raster.transform * (col_end, 0))[0]
+        all_rows = np.arange(row_start, row_end + 1)
+        ys = rows_to_ys(all_rows)
+        
+        x0s = np.full_like(ys, x0, dtype=float)
+        x1s = np.full_like(ys, x1, dtype=float)
 
-        results = []
+        # all points defining the scanlines
+        all_points = np.stack([
+            np.stack([x0s, ys], axis=1),  # shape (N, 2) -> start points
+            np.stack([x1s, ys], axis=1)   # shape (N, 2) -> end points
+        ], axis=1)  # shape (N, 2, 2)
 
-        # Debugging code
-        global_mask = np.zeros((w_height+1, w_width), dtype=int)
+        scanlines = MultiLineString(list(all_points))
+        all_intersections = scanlines.intersection(features.geometry)
 
-        for row in range(row_start, row_end + 1):  
-            y = (raster.transform * (0, row))[1]
-            row_intersections = []
-            any_intersection = False
-            for i, feature in enumerate(features.geometry):
-                f_intersections = self._compute_scanline_intersections(y, x0, x1, feature)
-                if len(f_intersections) > 0:
-                    any_intersection = True
-                row_intersections.append(f_intersections)
+        intersection_table = []
+        for f_index, inter in enumerate(all_intersections):
+            for ml in inter.geoms:
+                # f_index, y, x0, x1, (space for row, col1,col2) 
+                coords = np.asarray(ml.coords)
+                y_ = coords[0][1]
+                x0 = coords[0][0]
+                x1 = coords[-1][0]
+                intersection_table.append((
+                    f_index, y_, x0, x1, 0, 0, 0
+                ))
+
+        intersection_table = np.array(intersection_table)
+        inter_x0s = intersection_table[:, 2]
+        inter_x1s = intersection_table[:, 3]
+        inter_ys = intersection_table[:, 1]
+        f_index = intersection_table[:, 0]
+
+        rows, col0s = xy_to_rowcol(inter_x0s, inter_ys)
+        _, col1s = xy_to_rowcol(inter_x1s, inter_ys)
+        reading_table = np.stack([
+            rows, col0s, col1s, f_index
+        ], axis=1).astype(int)
+
+        # sort by row
+        reading_table = reading_table[np.argsort(reading_table[:, 0])]
+        rows, row_starts = np.unique(reading_table[:, 0], return_index=True)
+
+        pixel_values_per_feature = [[] for _ in range(len(all_intersections))]
+
+        for i, row in enumerate(rows):
+            start = row_starts[i]
+            end = row_starts[i+1] if i+1 < len(row_starts) else len(reading_table)
+            reading_line = reading_table[start:end]
             
-            if any_intersection:
-                row_results, global_mask = self._process_scanline(
-                    y, x0, x1, row_intersections, raster,
-                    global_mask, row - row_start # debugging
-                )
-                results.append(row_results)
+            min_col = np.min(reading_line[:, 1])
+            max_col = np.max(reading_line[:, 2])
+            reading_window = rio.windows.Window(
+                col_off=min_col,
+                row_off=row,
+                width=max_col - min_col,
+                height=1
+            )
+            # Does not handle nodata
+            data = raster.read(1, window=reading_window, masked=False)[0]
+            for j, col0, col1, f_index in reading_line:
+                c0 = col0 - min_col
+                c1 = col1 - min_col
+                pixel_values = data[c0:c1]
+                
+                # Debugging code
+                # mark the pixels in the global mask
+                # row_in_mask = row - row_start
+                # col0_in_mask = col0 - col_start
+                # col1_in_mask = col1 - col_start
+                # global_mask[row_in_mask, col0_in_mask:col1_in_mask] = f_index + 1
+                # End Debugging code
+
+                if len(pixel_values) > 0:
+                    pixel_values_per_feature[f_index].append(pixel_values)
+        
+
+        # combine the results
+        results_per_feature = []
+        for i in range(len(pixel_values_per_feature)):
+            feature_data = np.concatenate(pixel_values_per_feature[i])
+            # get the stats
+            r = self._compute_stats_from_array(feature_data)
+            results_per_feature.append(r)
+
+        self.results = results_per_feature
 
         # Debugging code
-        # import matplotlib.pyplot as plt
-
-        # plot mask
-        # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-        # ax.imshow(global_mask, cmap='inferno')
-        # ax.set_title('Global Mask')
-        # plt.savefig('global_mask.png')
-        # plt.close()
-        # end of debugging code
-
-        # combine partials but geometry wise
-        per_feature_results = []
-        for i in range(len(features.geometry)):
-            # get all results for this feature
-            feature_results = [r[i] for r in results]
-            # combine the results
-            per_feature_results.append(self._compute_stats_from_masked_array(
-                np.ma.concatenate(feature_results)
-            ))
-
-        # Debugging code
-        from raster_methods import Masking
-        m = Masking()
-        ref_mask = np.zeros_like(global_mask, dtype=int)
-        for i in range(len(features.geometry)):
-            # get all results for this feature
-            feature = features.geometry[i]
-            fmask = m.mask(feature, raster, window)
-            # add a 0 row at the end of fmask
-            fmask = np.insert(fmask, 0, 0, axis=0)
-            ref_mask[fmask] = i+1
+        # from raster_methods import Masking
+        # m = Masking()
+        # ref_mask = np.zeros_like(global_mask, dtype=int)
+        # for i in range(len(features.geometry)):
+        #     # get all results for this feature
+        #     feature = features.geometry[i]
+        #     fmask = m.mask(feature, raster, window)
+        #     # add a 0 row at the end of fmask
+        #     fmask = np.insert(fmask, 0, 0, axis=0)
+        #     ref_mask[fmask] = i+1
         # import matplotlib.pyplot as plt
         # diff_mask = global_mask - ref_mask
         # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-        # ax.imshow(diff_mask, cmap='grays')
+        # ax.imshow(diff_mask, cmap='inferno')
         # ax.set_title('Difference Mask')
         # plt.savefig('diff_mask.png')
         # plt.close()
         # end of debugging code    
         
-        self.results = per_feature_results
     
     def _run(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
-        self._precomputations(features, raster)
+        self._precomputations2(features, raster)
         return self.results
 
     # def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
@@ -345,7 +324,9 @@ def test():
         r_c = r1[i]['count']
         r_l = rlow[i]['count']
         r_h = rhigh[i]['count']
-        print(r_c-r_l, r_c-r_h)
+        err1 = abs(r_c - r_l) / r_l
+        err2 = abs(r_c - r_h) / r_h
+        print(f"Error {i}: {err1:.2%}")
 
 
 

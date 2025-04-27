@@ -1,13 +1,13 @@
 from experiment import Experiment
 from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
 from reference import reference_method
-from raptor_methods import AggQuadTree, Scanline
+from raptor_methods import AggQuadTree, Scanline, Scanline2
 from raster_methods import Masking, Clipping
 from vector_methods import NaivePointInPolygon, QSplit
 import time
 
 vector_layer_file = f'{VECTOR_DATA_PATH}/cb_2018_us_state_20m_filtered.shp'
-raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR_upsampled_10.tif'
+raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR_upsampled_5.tif'
 
 # change the shape file crs from 4269 to 3857
 # and save it to the same file
@@ -24,8 +24,9 @@ exps = [
     )
     for func in [
         Masking(),
-        Scanline(),
-        AggQuadTree()
+        # Scanline(),
+        # AggQuadTree(),
+        Scanline2(),
     ]
 ]
 

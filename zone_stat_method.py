@@ -25,6 +25,38 @@ class ZonalStatMethod():
         raster : rio.DatasetReader
         """
         pass
+    
+    def _compute_stats_from_array(self, data: np.ndarray):
+        """Computes the statistics for the array.
+
+        The code is based on the rasterstats library, so no difference in performance
+        should be expected in this part.
+        """
+
+        stats = self.stats
+        stats_out = {}
+
+        if data.size == 0:
+            for stat in self.stats:
+                if stat == "count":
+                    stats_out[stat] = 0
+                else:
+                    stats_out[stat] = None
+            return stats_out
+
+        # We are prly only use the mean but just in case
+        if "min" in stats:
+            stats_out["min"] = float(data.min())
+        if "max" in stats:
+            stats_out["max"] = float(data.max())
+        if "mean" in stats:
+            stats_out["mean"] = float(data.mean())
+        if "count" in stats:
+            stats_out["count"] = int(len(data))
+        if "sum" in stats:
+            stats_out["sum"] = float(data.sum())
+
+        return stats_out
 
     def _compute_stats_from_masked_array(self, masked: np.ndarray):
         """Computes the statistics for the masked array.
