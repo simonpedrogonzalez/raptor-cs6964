@@ -233,7 +233,7 @@ class Node():
     def is_root(self) -> bool:
         return self.level == 0
 
-class AggQuadTree(Scanline):
+class AggQuadTree(ZonalStatMethod):
 
     
     __name__ = "AggQuadTree"
@@ -247,6 +247,7 @@ class AggQuadTree(Scanline):
             "max_depth": self.max_depth
         }
     
+    @line_profiler.profile
     def _precomputations(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader):
         
         # width = raster.width
@@ -366,6 +367,7 @@ class AggQuadTree(Scanline):
 
         self.idx = idx
 
+    @line_profiler.profile
     def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
 
         # Get all intersecting nodes, sorted from root to leaves
