@@ -142,16 +142,14 @@ class Scanline(ZonalStatMethod):
 
 
 
-class Scanline2(ZonalStatMethod):
+class Scanline(ZonalStatMethod):
 
-    __name__ = "Scanline2"
+    __name__ = "Scanline"
 
     def __init__(self):
         super().__init__()
 
-    @line_profiler.profile
-    def _precomputations2(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
-        
+    def _precomputations(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
 
         transform = raster.transform
 
@@ -297,14 +295,8 @@ class Scanline2(ZonalStatMethod):
         
     
     def _run(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
-        self._precomputations2(features, raster)
+        self._precomputations(features, raster)
         return self.results
-
-    # def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
-
-    #     # just fetch the results
-    #     return self.results
-
 
 
 def test():
