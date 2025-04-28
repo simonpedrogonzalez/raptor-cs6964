@@ -1,6 +1,6 @@
 Timer unit: 1e-06 s
 
-Total time: 8.51695 s
+Total time: 7.41453 s
 File: /media/simon/HDD/strix/repos/mdml/raptor-cs6964/raptor_methods.py
 Function: _precomputations at line 250
 
@@ -12,14 +12,14 @@ Line #      Hits         Time  Per Hit   % Time  Line Contents
    253                                                   # width = raster.width
    254                                                   # height = raster.height
    255                                           
-   256         1          1.3      1.3      0.0          boxes_per_level = {}
-   257         1         34.4     34.4      0.0          x_min, y_min, x_max, y_max = raster.bounds
-   258         1          0.7      0.7      0.0          width = x_max - x_min
-   259         1          0.2      0.2      0.0          height = y_max - y_min
+   256         1          0.5      0.5      0.0          boxes_per_level = {}
+   257         1         30.0     30.0      0.0          x_min, y_min, x_max, y_max = raster.bounds
+   258         1          1.1      1.1      0.0          width = x_max - x_min
+   259         1          0.4      0.4      0.0          height = y_max - y_min
    260                                           
-   261         7          7.9      1.1      0.0          n_total_boxes = sum([4 ** i for i in range(self.max_depth + 1)])
-   262         1          0.4      0.4      0.0          box_index = 0
-   263         1      46758.6  46758.6      0.5          idx = index.Index()
+   261         7          8.7      1.2      0.0          n_total_boxes = sum([4 ** i for i in range(self.max_depth + 1)])
+   262         1          0.5      0.5      0.0          box_index = 0
+   263         1        315.2    315.2      0.0          idx = index.Index()
    264                                           
    265                                                   # print(f"Total boxes: {n_total_boxes}")
    266                                                   # print(f"Width: {width}, Height: {height} in coordinates")
@@ -27,27 +27,27 @@ Line #      Hits         Time  Per Hit   % Time  Line Contents
    268                                                   # print(f"Maxx: {x_max}, Maxy: {y_max} in coordinates")
    269                                                   # print(f"Raster size: {raster.width} x {raster.height}")
    270                                           
-   271         7         15.3      2.2      0.0          for level in range(self.max_depth, -1, -1):
-   272         6          6.6      1.1      0.0              divisions = 2 ** level
-   273         6         10.1      1.7      0.0              dx = width / divisions
-   274         6          3.6      0.6      0.0              dy = height / divisions
-   275         6       1011.3    168.6      0.0              x_starts = np.linspace(x_min, x_max - dx, divisions)
-   276         6        305.6     50.9      0.0              y_starts = np.linspace(y_min, y_max - dy, divisions)
+   271         7          7.9      1.1      0.0          for level in range(self.max_depth, -1, -1):
+   272         6          6.4      1.1      0.0              divisions = 2 ** level
+   273         6          7.4      1.2      0.0              dx = width / divisions
+   274         6          3.3      0.5      0.0              dy = height / divisions
+   275         6        536.1     89.4      0.0              x_starts = np.linspace(x_min, x_max - dx, divisions)
+   276         6        249.4     41.6      0.0              y_starts = np.linspace(y_min, y_max - dy, divisions)
    277                                           
-   278         6       1208.5    201.4      0.0              xs, ys = np.meshgrid(x_starts, y_starts)
+   278         6        844.4    140.7      0.0              xs, ys = np.meshgrid(x_starts, y_starts)
    279                                           
-   280         6         54.5      9.1      0.0              xs = xs.flatten()
-   281         6         12.8      2.1      0.0              ys = ys.flatten()
+   280         6         36.6      6.1      0.0              xs = xs.flatten()
+   281         6         14.2      2.4      0.0              ys = ys.flatten()
    282                                           
-   283         6        450.4     75.1      0.0              boxes = np.stack([xs, ys, xs + dx, ys + dy], axis=1)
+   283         6        329.7     54.9      0.0              boxes = np.stack([xs, ys, xs + dx, ys + dy], axis=1)
    284                                                       
-   285         6          5.0      0.8      0.0              if level != 0:
-   286        10         18.0      1.8      0.0                  blocks = boxes.reshape(divisions//2, 2, divisions//2, 2, 4)\
-   287         5         10.4      2.1      0.0                      .transpose(0, 2, 1, 3, 4)\
-   288         5         95.4     19.1      0.0                      .reshape(-1, 4)
-   289         5          2.7      0.5      0.0                  boxes = blocks
+   285         6          6.5      1.1      0.0              if level != 0:
+   286        10         17.2      1.7      0.0                  blocks = boxes.reshape(divisions//2, 2, divisions//2, 2, 4)\
+   287         5          8.8      1.8      0.0                      .transpose(0, 2, 1, 3, 4)\
+   288         5         39.2      7.8      0.0                      .reshape(-1, 4)
+   289         5          2.4      0.5      0.0                  boxes = blocks
    290                                                           
-   291         6          5.6      0.9      0.0              n_boxes = len(blocks)
+   291         6          5.0      0.8      0.0              n_boxes = len(blocks)
    292                                           
    293                                                       # print(f"Level {level}: {n_boxes} boxes")
    294                                                       # print(f"Divisions: {divisions}")
@@ -56,77 +56,77 @@ Line #      Hits         Time  Per Hit   % Time  Line Contents
    297                                                       # print(f"min boxes: {min(boxes[:, 0])}, {min(boxes[:, 1])}")
    298                                                       # print(f"First box: {boxes[0]}")
    299                                           
-   300         6        113.7     19.0      0.0              ids = (np.arange(n_boxes) + box_index).astype('uint8')
-   301         6          4.4      0.7      0.0              box_index += n_boxes
-   302         6         88.8     14.8      0.0              parent_ids = (np.arange(n_boxes // 4) + box_index).astype('uint8').repeat(4)
-   303         6          4.1      0.7      0.0              if level == 0:
-   304         1          2.9      2.9      0.0                  parent_ids = np.array([np.nan])
+   300         6         81.9     13.7      0.0              ids = (np.arange(n_boxes) + box_index).astype('uint8')
+   301         6          4.5      0.7      0.0              box_index += n_boxes
+   302         6         67.9     11.3      0.0              parent_ids = (np.arange(n_boxes // 4) + box_index).astype('uint8').repeat(4)
+   303         6          5.0      0.8      0.0              if level == 0:
+   304         1          5.8      5.8      0.0                  parent_ids = np.array([np.nan])
    305                                           
-   306         6       2769.4    461.6      0.0              shp_boxes1 = box(boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3])
-   307      1371      45181.7     33.0      0.5              shp_boxes = [box(x0, y0, x1, y1) for x0, y0, x1, y1 in boxes]
+   306         6       1266.9    211.2      0.0              shp_boxes1 = box(boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3])
+   307      1371      15397.1     11.2      0.2              shp_boxes = [box(x0, y0, x1, y1) for x0, y0, x1, y1 in boxes]
    308                                                       # print(shp_boxes[0])
    309                                                       # print(shp_boxes1[0])
    310                                                       # print(boxes[0])
-   311         6         13.2      2.2      0.0              if level == self.max_depth:
+   311         6         11.7      1.9      0.0              if level == self.max_depth:
    312                                                           
-   313         2      15522.3   7761.2      0.2                  vector_layer = gpd.GeoDataFrame(
-   314         1          0.8      0.8      0.0                      geometry=shp_boxes,
-   315         1       1811.3   1811.3      0.0                      crs=feature.crs
+   313         2       6289.7   3144.8      0.1                  vector_layer = gpd.GeoDataFrame(
+   314         1          0.5      0.5      0.0                      geometry=shp_boxes,
+   315         1        494.6    494.6      0.0                      crs=feature.crs
    316                                                           )
    317                                           
    318                                                           # count number of pixels in first box
-   319         1        613.4    613.4      0.0                  box1 = vector_layer.geometry[0]
-   320         2        838.0    419.0      0.0                  win = rio.windows.from_bounds(
-   321         1        123.3    123.3      0.0                      box1.bounds[0],
-   322         1         37.6     37.6      0.0                      box1.bounds[1],
-   323         1         31.9     31.9      0.0                      box1.bounds[2],
-   324         1         30.8     30.8      0.0                      box1.bounds[3],
-   325         1         21.5     21.5      0.0                      transform=raster.transform
+   319         1        251.3    251.3      0.0                  box1 = vector_layer.geometry[0]
+   320         2        398.3    199.1      0.0                  win = rio.windows.from_bounds(
+   321         1         52.4     52.4      0.0                      box1.bounds[0],
+   322         1         15.0     15.0      0.0                      box1.bounds[1],
+   323         1         11.5     11.5      0.0                      box1.bounds[2],
+   324         1         10.7     10.7      0.0                      box1.bounds[3],
+   325         1          9.3      9.3      0.0                      transform=raster.transform
    326                                                           )
-   327         1      25803.5  25803.5      0.3                  data = raster.read(window=win, masked=True)
-   328         1        151.9    151.9      0.0                  data = data[0]
-   329         1        194.6    194.6      0.0                  data = data[~data.mask]
+   327         1      19092.8  19092.8      0.3                  data = raster.read(window=win, masked=True)
+   328         1        106.4    106.4      0.0                  data = data[0]
+   329         1        138.8    138.8      0.0                  data = data[~data.mask]
    330                                                           # print(f"Data shape: {data.shape}")
    331                                           
-   332         1         23.5     23.5      0.0                  masking_method = Masking()
-   333         1    8188424.9    8e+06     96.1                  aggregates = masking_method(raster, vector_layer, self.stats)
-   334         1        115.2    115.2      0.0                  aggregates = np.array(aggregates)
+   332         1         17.0     17.0      0.0                  masking_method = Masking()
+   333         1    7129200.6    7e+06     96.2                  aggregates = masking_method(raster, vector_layer, self.stats)
+   334         1        141.2    141.2      0.0                  aggregates = np.array(aggregates)
    335                                                           # print(f"Aggregates count: {aggregates[0]['count']}")
    336                                                       else:
    337                                                           # use self._combine_stats to combine the stats of the previous level
    338                                                           # run combine over the previous_aggregates using previous_ids
    339                                                           # to know which previous_aggregates belong to which parent
    340                                           
-   341         5          1.4      0.3      0.0                  aggregates = []
-   342       346        187.2      0.5      0.0                  for i in range(len(boxes)):
-   343       682       2024.7      3.0      0.0                      child_ids = previous_ids[previous_parent_ids == previous_parent_ids[i]] \
-   344       341       1263.8      3.7      0.0                          - previous_ids.min()
-   345       341        966.9      2.8      0.0                      child_aggregates = previous_aggregates[child_ids]
+   341         5          3.6      0.7      0.0                  aggregates = []
+   342       346        207.9      0.6      0.0                  for i in range(len(boxes)):
+   343       682       2437.6      3.6      0.0                      child_ids = previous_ids[previous_parent_ids == previous_parent_ids[i]] \
+   344       341       1456.2      4.3      0.0                          - previous_ids.min()
+   345       341       1144.0      3.4      0.0                      child_aggregates = previous_aggregates[child_ids]
    346                                           
-   347       341      23970.2     70.3      0.3                      aggregates.append(self._combine_stats(child_aggregates))
+   347       341      29716.2     87.1      0.4                      aggregates.append(self._combine_stats(child_aggregates))
    348                                                           
-   349         5         49.4      9.9      0.0                  aggregates = np.array(aggregates)
+   349         5         54.9     11.0      0.0                  aggregates = np.array(aggregates)
    350                                           
-   351         6        202.0     33.7      0.0              previous_aggregates = aggregates
-   352         6          1.7      0.3      0.0              previous_ids = ids
-   353         6          2.7      0.4      0.0              previous_parent_ids = parent_ids
+   351         6        168.0     28.0      0.0              previous_aggregates = aggregates
+   352         6          3.6      0.6      0.0              previous_ids = ids
+   353         6          6.1      1.0      0.0              previous_parent_ids = parent_ids
    354                                                       
    355                                                       # test_plot(boxes, aggregates)
    356                                           
-   357      1371        874.4      0.6      0.0              for i in range(len(boxes)):
-   358      2730       4597.2      1.7      0.1                  node = Node(
-   359      1365       1234.1      0.9      0.0                      _id=ids[i],
-   360      1365        430.0      0.3      0.0                      parent_id=parent_ids[i],
-   361      1365        303.3      0.2      0.0                      level=level,
-   362      1365        511.4      0.4      0.0                      max_depth=self.max_depth,
-   363      1365        491.1      0.4      0.0                      _box=shp_boxes[i],
-   364      1365        526.8      0.4      0.0                      stats=aggregates[i]
+   357      1371       1060.1      0.8      0.0              for i in range(len(boxes)):
+   358      2730       5894.5      2.2      0.1                  node = Node(
+   359      1365       1432.9      1.0      0.0                      _id=ids[i],
+   360      1365        578.9      0.4      0.0                      parent_id=parent_ids[i],
+   361      1365        404.1      0.3      0.0                      level=level,
+   362      1365        670.0      0.5      0.0                      max_depth=self.max_depth,
+   363      1365        680.2      0.5      0.0                      _box=shp_boxes[i],
+   364      1365        668.8      0.5      0.0                      stats=aggregates[i]
    365                                                           )
-   366      1365     147364.4    108.0      1.7                  idx.insert(ids[i], boxes[i], obj=node)
+   366      1365     192391.0    140.9      2.6                  idx.insert(ids[i], boxes[i], obj=node)
    367                                           
-   368         1          4.2      4.2      0.0          self.idx = idx
+   368         1          7.0      7.0      0.0          self.idx = idx
 
-Total time: 0 s
+Total time: 1.17348 s
 File: /media/simon/HDD/strix/repos/mdml/raptor-cs6964/raptor_methods.py
 Function: _compute_stats at line 370
 
@@ -136,24 +136,24 @@ Line #      Hits         Time  Per Hit   % Time  Line Contents
    371                                               def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
    372                                           
    373                                                   # Get all intersecting nodes, sorted from root to leaves
-   374                                                   window_bounds = rio.windows.bounds(window, raster.transform)
-   375                                                   nodes = list(self.idx.intersection(window_bounds, objects=True))[::-1]
-   376                                                   nodes = [node.object for node in nodes]
-   377                                                   geom = feature.geometry[0]
+   374        49        955.4     19.5      0.1          window_bounds = rio.windows.bounds(window, raster.transform)
+   375        49     106976.6   2183.2      9.1          nodes = list(self.idx.intersection(window_bounds, objects=True))[::-1]
+   376      1305        595.1      0.5      0.1          nodes = [node.object for node in nodes]
+   377        49       8422.5    171.9      0.7          geom = feature.geometry[0]
    378                                           
    379                                                   # Debugging code
    380                                                   # global_mask = np.zeros((window.height, window.width), dtype=bool)
    381                                           
-   382                                                   partials = []
-   383                                                   while len(nodes) > 0:
-   384                                                       node = nodes.pop(0)
-   385                                                       if node.is_contained_in_geom(geom):
+   382        49         23.2      0.5      0.0          partials = []
+   383      1305        865.1      0.7      0.1          while len(nodes) > 0:
+   384      1256       2348.1      1.9      0.2              node = nodes.pop(0)
+   385      1256      35230.0     28.0      3.0              if node.is_contained_in_geom(geom):
    386                                                           # print(f"Fully conained node")
    387                                           
    388                                                           # add the entire node to the mask
-   389                                                           win = rio.windows.from_bounds(
-   390                                                               *node.box.bounds,
-   391                                                               transform=raster.transform
+   389       162       5002.6     30.9      0.4                  win = rio.windows.from_bounds(
+   390        54       1132.2     21.0      0.1                      *node.box.bounds,
+   391        54        320.3      5.9      0.0                      transform=raster.transform
    392                                                           )
    393                                                           # Calculate the overlap of the node's window relative to the main processing window
    394                                                           # row_start = int(win.row_off - window.row_off)
@@ -167,37 +167,37 @@ Line #      Hits         Time  Per Hit   % Time  Line Contents
    402                                                           # is inside the window
    403                                                           # end of debugging code
    404                                           
-   405                                                           partials.append(node.stats)
-   406                                                           if node.is_leaf():
-   407                                                               continue
+   405        54         44.9      0.8      0.0                  partials.append(node.stats)
+   406        54         62.9      1.2      0.0                  if node.is_leaf():
+   407        51         16.3      0.3      0.0                      continue
    408                                                           # remove all children from the list
-   409                                                           for n in nodes:
-   410                                                               if n.parent_id == node.id:
+   409        60         17.5      0.3      0.0                  for n in nodes:
+   410        57         22.9      0.4      0.0                      if n.parent_id == node.id:
    411                                                                   nodes.remove(n)
    412                                                       else:
-   413                                                           if node.is_leaf():
+   413      1202       1265.0      1.1      0.1                  if node.is_leaf():
    414                                                               # print(f"Not contained leaf")
    415                                                               # is leaf but only intersects the geom
-   416                                                               intersection_geom = node.box.intersection(geom)
-   417                                                               if intersection_geom.is_empty:
+   416       602      58705.0     97.5      5.0                      intersection_geom = node.box.intersection(geom)
+   417       602       7618.1     12.7      0.6                      if intersection_geom.is_empty:
    418                                                                   # means that both the node intersects
    419                                                                   # the window but not the feature
-   420                                                                   continue
-   421                                                               win = rio.windows.from_bounds(
-   422                                                                   *intersection_geom.bounds,
-   423                                                                   transform=raster.transform
+   420       120         44.7      0.4      0.0                          continue
+   421      1446      49711.5     34.4      4.2                      win = rio.windows.from_bounds(
+   422       482       9041.5     18.8      0.8                          *intersection_geom.bounds,
+   423       482       3193.8      6.6      0.3                          transform=raster.transform
    424                                                               )
-   425                                                               out_shape = (int(np.ceil(win.height)), int(np.ceil(win.width)))
-   426                                                               mask = rio.features.rasterize(
-   427                                                                   [(intersection_geom, 1)],
-   428                                                                   out_shape=(int(np.ceil(win.height)), int(np.ceil(win.width))),
-   429                                                                   transform=rio.windows.transform(win, raster.transform),
-   430                                                                   fill=0,
-   431                                                                   dtype='uint8'
-   432                                                               ).astype(bool)
-   433                                                               data = raster.read(window=win, out_shape=out_shape, masked=True)[0]
-   434                                                               data = data[mask]
-   435                                                               partials.append(self._compute_stats_from_masked_array(data))
+   425       482       2771.5      5.8      0.2                      out_shape = (int(np.ceil(win.height)), int(np.ceil(win.width)))
+   426      1446     582679.6    403.0     49.7                      mask = rio.features.rasterize(
+   427       482        205.4      0.4      0.0                          [(intersection_geom, 1)],
+   428       482       1036.2      2.1      0.1                          out_shape=(int(np.ceil(win.height)), int(np.ceil(win.width))),
+   429       482       9573.2     19.9      0.8                          transform=rio.windows.transform(win, raster.transform),
+   430       482        132.0      0.3      0.0                          fill=0,
+   431       482        109.9      0.2      0.0                          dtype='uint8'
+   432       482       3972.4      8.2      0.3                      ).astype(bool)
+   433       482     154855.2    321.3     13.2                      data = raster.read(window=win, out_shape=out_shape, masked=True)[0]
+   434       482      31583.4     65.5      2.7                      data = data[mask]
+   435       482      88994.5    184.6      7.6                      partials.append(self._compute_stats_from_masked_array(data))
    436                                           
    437                                                               # add the mask to the global mask
    438                                                               
@@ -214,11 +214,32 @@ Line #      Hits         Time  Per Hit   % Time  Line Contents
    449                                                           else:
    450                                                               # not completely inside but has children, so the children
    451                                                               # will be analyzed in next iterations
-   452                                                               continue
+   452       600        163.2      0.3      0.0                      continue
    453                                                   
    454                                                   # check global mask
    455                                                   # plot_masks(raster, feature, global_mask, window)
    456                                           
    457                                                   # combine the partials
-   458                                                   return self._combine_stats(partials)
+   458        49       5786.7    118.1      0.5          return self._combine_stats(partials)
+
+Total time: 8.54763 s
+File: /media/simon/HDD/strix/repos/mdml/raptor-cs6964/zone_stat_method.py
+Function: _run at line 136
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   136                                               @line_profiler.profile
+   137                                               def _run(self, vector_layer: gpd.GeoDataFrame, raster: rio.DatasetReader):
+   138         2          1.0      0.5      0.0          results = []
+   139         2      40115.7  20057.9      0.5          self._precomputations(vector_layer, raster)
+   140      1075      10410.2      9.7      0.1          for geom in vector_layer.geometry:
+   141      1073        289.8      0.3      0.0              try:
+   142      1073     303256.8    282.6      3.5                  window = geometry_window(raster, [geom])
+   143                                                       except rio.errors.WindowError:
+   144                                                           # there is no intersection
+   145                                                           results.append(None)
+   146                                                           continue
+   147      1073    3247107.2   3026.2     38.0              feature = gpd.GeoDataFrame(geometry=[geom], crs=vector_layer.crs)
+   148      1073    4946447.5   4609.9     57.9              results.append(self._compute_stats(feature, raster, window))
+   149         2          1.7      0.9      0.0          return results
 

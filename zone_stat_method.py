@@ -133,7 +133,7 @@ class ZonalStatMethod():
         """
         raise NotImplementedError
 
-    # @line_profiler.profile
+    @line_profiler.profile
     def _run(self, vector_layer: gpd.GeoDataFrame, raster: rio.DatasetReader):
         results = []
         self._precomputations(vector_layer, raster)
