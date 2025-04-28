@@ -9,6 +9,9 @@ from raster_methods import Masking
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import line_profiler
+from constants import INDICES_PATH
+import os
+import shutil
 
 class Scanline(ZonalStatMethod):
 
@@ -201,6 +204,13 @@ class AggQuadTree2(ZonalStatMethod):
             "max_depth": self.max_depth
         }
 
+    def _get_index_path(self):
+        raster_file_name = self.raster_file_path.split("/")[-1]
+        raster_base_name = os.path.splitext(raster_file_name)[0]
+        max_depth = self.max_depth
+        index_path = os.path.join(INDICES_PATH, f"index_{raster_base_name}_depth_{max_depth}")
+        return index_path
+
     def _compute_scanline_reading_table(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
 
         transform = raster.transform
@@ -307,25 +317,14 @@ class AggQuadTree2(ZonalStatMethod):
 
             return boxes, ix, iy
 
-
-
-        # width = raster.width
-        # height = raster.height
-
-        boxes_per_level = {}
         x_min, y_min, x_max, y_max = raster.bounds
         width = x_max - x_min
         height = y_max - y_min
 
         n_total_boxes = sum([4 ** i for i in range(self.max_depth + 1)])
         box_index = 0
-        idx = index.Index()
+        idx = index.Index(self._get_index_path())
 
-        # print(f"Total boxes: {n_total_boxes}")
-        # print(f"Width: {width}, Height: {height} in coordinates")
-        # print(f"Minx: {x_min}, Miny: {y_min} in coordinates")
-        # print(f"Maxx: {x_max}, Maxy: {y_max} in coordinates")
-        # print(f"Raster size: {raster.width} x {raster.height}")
         all_nodes = []
 
         for level in range(self.max_depth, -1, -1):
@@ -412,13 +411,21 @@ class AggQuadTree2(ZonalStatMethod):
         self.idx = idx
 
 
+
     def _load_quad_tree(self):
-        raster_file_name = self.raster_file_path.split("/")[-1]
-        quad_tree_file_name = f"quad_tree_{raster_file_name}.pkl"
+        idx_path = self._get_index_path()
+        idx_file = idx_path + ".idx"
+        dat_file = idx_path + ".dat"
+        if os.path.exists(idx_file) and os.path.exists(dat_file):
+            self.idx = index.Index(idx_path)
+            return True
+        else:
+            return False
 
     @line_profiler.profile
     def _precomputations(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
-        self._compute_quad_tree(features, raster)
+        if not self._load_quad_tree():
+            self._compute_quad_tree(features, raster)
         self._compute_scanline_reading_table(features, raster)
 
     @line_profiler.profile
