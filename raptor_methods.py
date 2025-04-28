@@ -12,6 +12,7 @@ import line_profiler
 from constants import INDICES_PATH
 import os
 import shutil
+from node import Node
 
 class Scanline(ZonalStatMethod):
 
@@ -168,26 +169,6 @@ class Scanline(ZonalStatMethod):
     def _run(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
         self._precomputations(features, raster)
         return self.results
-
-
-
-class Node():
-    def __init__(self, _id, parent_id, level, _box, stats, max_depth):
-        self.id = _id
-        self.parent_id = parent_id
-        self.level = level
-        self.box = _box
-        self.stats = stats
-        self.max_depth = max_depth
-
-    def is_contained_in_geom(self, geom: Geometry) -> bool:
-        return self.box.within(geom)
-    
-    def is_leaf(self) -> bool:
-        return self.level == self.max_depth
-
-    def is_root(self) -> bool:
-        return self.level == 0
 
 
 class AggQuadTree2(ZonalStatMethod):

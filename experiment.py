@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 class Experiment:
     def __init__(self,
-    raster_path, vector_path, func, reps=1, stats=['count', 'mean'],
+    raster_path, vector_path, func, reps=1, stats=['count'],
     check_results=False, plot_results=False,
     csv_output=True, json_output=False,
     ):

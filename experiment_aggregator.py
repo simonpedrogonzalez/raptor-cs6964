@@ -84,7 +84,7 @@ class ExperimentAggregator:
             ax.set_xlabel(metric)
             plt.yticks(rotation=0)  # (Optional) keep group labels readable
             plt.tight_layout()
-            plt.savefig(f"{dir_name}/{metric}.png")
+            plt.savefig(f"{dir_name}/{metric}.svg")
             plt.clf()
             plt.close()
 

@@ -17,7 +17,8 @@ exp = Experiment(
     raster_path=raster_layer_file,
     vector_path=vector_layer_file,
     func=AggQuadTree2(max_depth=7),
-    reps=1
+    reps=1,
+    stats=["count"]
 )
 
 if __name__ == "__main__":
