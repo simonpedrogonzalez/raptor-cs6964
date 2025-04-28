@@ -1,245 +1,353 @@
 Timer unit: 1e-06 s
 
-Total time: 7.41453 s
+Total time: 5.91476 s
 File: /media/simon/HDD/strix/repos/mdml/raptor-cs6964/raptor_methods.py
-Function: _precomputations at line 250
+Function: _compute_quad_tree at line 505
 
 Line #      Hits         Time  Per Hit   % Time  Line Contents
 ==============================================================
-   250                                               @line_profiler.profile
-   251                                               def _precomputations(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader):
-   252                                                   
-   253                                                   # width = raster.width
-   254                                                   # height = raster.height
-   255                                           
-   256         1          0.5      0.5      0.0          boxes_per_level = {}
-   257         1         30.0     30.0      0.0          x_min, y_min, x_max, y_max = raster.bounds
-   258         1          1.1      1.1      0.0          width = x_max - x_min
-   259         1          0.4      0.4      0.0          height = y_max - y_min
-   260                                           
-   261         7          8.7      1.2      0.0          n_total_boxes = sum([4 ** i for i in range(self.max_depth + 1)])
-   262         1          0.5      0.5      0.0          box_index = 0
-   263         1        315.2    315.2      0.0          idx = index.Index()
-   264                                           
-   265                                                   # print(f"Total boxes: {n_total_boxes}")
-   266                                                   # print(f"Width: {width}, Height: {height} in coordinates")
-   267                                                   # print(f"Minx: {x_min}, Miny: {y_min} in coordinates")
-   268                                                   # print(f"Maxx: {x_max}, Maxy: {y_max} in coordinates")
-   269                                                   # print(f"Raster size: {raster.width} x {raster.height}")
-   270                                           
-   271         7          7.9      1.1      0.0          for level in range(self.max_depth, -1, -1):
-   272         6          6.4      1.1      0.0              divisions = 2 ** level
-   273         6          7.4      1.2      0.0              dx = width / divisions
-   274         6          3.3      0.5      0.0              dy = height / divisions
-   275         6        536.1     89.4      0.0              x_starts = np.linspace(x_min, x_max - dx, divisions)
-   276         6        249.4     41.6      0.0              y_starts = np.linspace(y_min, y_max - dy, divisions)
-   277                                           
-   278         6        844.4    140.7      0.0              xs, ys = np.meshgrid(x_starts, y_starts)
-   279                                           
-   280         6         36.6      6.1      0.0              xs = xs.flatten()
-   281         6         14.2      2.4      0.0              ys = ys.flatten()
-   282                                           
-   283         6        329.7     54.9      0.0              boxes = np.stack([xs, ys, xs + dx, ys + dy], axis=1)
-   284                                                       
-   285         6          6.5      1.1      0.0              if level != 0:
-   286        10         17.2      1.7      0.0                  blocks = boxes.reshape(divisions//2, 2, divisions//2, 2, 4)\
-   287         5          8.8      1.8      0.0                      .transpose(0, 2, 1, 3, 4)\
-   288         5         39.2      7.8      0.0                      .reshape(-1, 4)
-   289         5          2.4      0.5      0.0                  boxes = blocks
-   290                                                           
-   291         6          5.0      0.8      0.0              n_boxes = len(blocks)
-   292                                           
-   293                                                       # print(f"Level {level}: {n_boxes} boxes")
-   294                                                       # print(f"Divisions: {divisions}")
-   295                                                       # print(f"Len boxes: {len(boxes)}")
-   296                                                       # print(f"max boxes: {max(boxes[:, 2])}, {max(boxes[:, 3])}")
-   297                                                       # print(f"min boxes: {min(boxes[:, 0])}, {min(boxes[:, 1])}")
-   298                                                       # print(f"First box: {boxes[0]}")
-   299                                           
-   300         6         81.9     13.7      0.0              ids = (np.arange(n_boxes) + box_index).astype('uint8')
-   301         6          4.5      0.7      0.0              box_index += n_boxes
-   302         6         67.9     11.3      0.0              parent_ids = (np.arange(n_boxes // 4) + box_index).astype('uint8').repeat(4)
-   303         6          5.0      0.8      0.0              if level == 0:
-   304         1          5.8      5.8      0.0                  parent_ids = np.array([np.nan])
-   305                                           
-   306         6       1266.9    211.2      0.0              shp_boxes1 = box(boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3])
-   307      1371      15397.1     11.2      0.2              shp_boxes = [box(x0, y0, x1, y1) for x0, y0, x1, y1 in boxes]
-   308                                                       # print(shp_boxes[0])
-   309                                                       # print(shp_boxes1[0])
-   310                                                       # print(boxes[0])
-   311         6         11.7      1.9      0.0              if level == self.max_depth:
-   312                                                           
-   313         2       6289.7   3144.8      0.1                  vector_layer = gpd.GeoDataFrame(
-   314         1          0.5      0.5      0.0                      geometry=shp_boxes,
-   315         1        494.6    494.6      0.0                      crs=feature.crs
-   316                                                           )
-   317                                           
-   318                                                           # count number of pixels in first box
-   319         1        251.3    251.3      0.0                  box1 = vector_layer.geometry[0]
-   320         2        398.3    199.1      0.0                  win = rio.windows.from_bounds(
-   321         1         52.4     52.4      0.0                      box1.bounds[0],
-   322         1         15.0     15.0      0.0                      box1.bounds[1],
-   323         1         11.5     11.5      0.0                      box1.bounds[2],
-   324         1         10.7     10.7      0.0                      box1.bounds[3],
-   325         1          9.3      9.3      0.0                      transform=raster.transform
-   326                                                           )
-   327         1      19092.8  19092.8      0.3                  data = raster.read(window=win, masked=True)
-   328         1        106.4    106.4      0.0                  data = data[0]
-   329         1        138.8    138.8      0.0                  data = data[~data.mask]
-   330                                                           # print(f"Data shape: {data.shape}")
-   331                                           
-   332         1         17.0     17.0      0.0                  masking_method = Masking()
-   333         1    7129200.6    7e+06     96.2                  aggregates = masking_method(raster, vector_layer, self.stats)
-   334         1        141.2    141.2      0.0                  aggregates = np.array(aggregates)
-   335                                                           # print(f"Aggregates count: {aggregates[0]['count']}")
-   336                                                       else:
-   337                                                           # use self._combine_stats to combine the stats of the previous level
-   338                                                           # run combine over the previous_aggregates using previous_ids
-   339                                                           # to know which previous_aggregates belong to which parent
-   340                                           
-   341         5          3.6      0.7      0.0                  aggregates = []
-   342       346        207.9      0.6      0.0                  for i in range(len(boxes)):
-   343       682       2437.6      3.6      0.0                      child_ids = previous_ids[previous_parent_ids == previous_parent_ids[i]] \
-   344       341       1456.2      4.3      0.0                          - previous_ids.min()
-   345       341       1144.0      3.4      0.0                      child_aggregates = previous_aggregates[child_ids]
-   346                                           
-   347       341      29716.2     87.1      0.4                      aggregates.append(self._combine_stats(child_aggregates))
-   348                                                           
-   349         5         54.9     11.0      0.0                  aggregates = np.array(aggregates)
-   350                                           
-   351         6        168.0     28.0      0.0              previous_aggregates = aggregates
-   352         6          3.6      0.6      0.0              previous_ids = ids
-   353         6          6.1      1.0      0.0              previous_parent_ids = parent_ids
-   354                                                       
-   355                                                       # test_plot(boxes, aggregates)
-   356                                           
-   357      1371       1060.1      0.8      0.0              for i in range(len(boxes)):
-   358      2730       5894.5      2.2      0.1                  node = Node(
-   359      1365       1432.9      1.0      0.0                      _id=ids[i],
-   360      1365        578.9      0.4      0.0                      parent_id=parent_ids[i],
-   361      1365        404.1      0.3      0.0                      level=level,
-   362      1365        670.0      0.5      0.0                      max_depth=self.max_depth,
-   363      1365        680.2      0.5      0.0                      _box=shp_boxes[i],
-   364      1365        668.8      0.5      0.0                      stats=aggregates[i]
-   365                                                           )
-   366      1365     192391.0    140.9      2.6                  idx.insert(ids[i], boxes[i], obj=node)
-   367                                           
-   368         1          7.0      7.0      0.0          self.idx = idx
+   505                                               @line_profiler.profile
+   506                                               def _compute_quad_tree(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader):
+   507                                                   
+   508         1          4.6      4.6      0.0          def part1by1(n):
+   509                                                       n &= 0x0000ffff
+   510                                                       n = (n | (n << 8)) & 0x00FF00FF
+   511                                                       n = (n | (n << 4)) & 0x0F0F0F0F
+   512                                                       n = (n | (n << 2)) & 0x33333333
+   513                                                       n = (n | (n << 1)) & 0x55555555
+   514                                                       return n
+   515                                           
+   516         1          5.3      5.3      0.0          def z_order_indices(xs, ys):
+   517                                                       return (part1by1(ys) << 1) | part1by1(xs)
+   518                                           
+   519         1          3.0      3.0      0.0          def get_boxes(divisions, x_min, x_max, y_min, y_max):
+   520                                                       dx = (x_max - x_min) / divisions
+   521                                                       dy = (y_max - y_min) / divisions
+   522                                                       x_starts = np.linspace(x_min, x_max - dx, divisions)
+   523                                                       y_starts = np.linspace(y_min, y_max - dy, divisions)
+   524                                                       xs, ys = np.meshgrid(x_starts, y_starts)
+   525                                                       boxes = np.stack([xs.flatten(), ys.flatten(), (xs + dx).flatten(), (ys + dy).flatten()], axis=1)
+   526                                           
+   527                                                       # ALSO get the corresponding grid indices (ix, iy) to calculate Z-order
+   528                                                       grid_xs, grid_ys = np.meshgrid(np.arange(divisions), np.arange(divisions))
+   529                                                       ix = grid_xs.flatten()
+   530                                                       iy = grid_ys.flatten()
+   531                                           
+   532                                                       return boxes, ix, iy
+   533                                           
+   534                                           
+   535                                           
+   536                                                   # width = raster.width
+   537                                                   # height = raster.height
+   538                                           
+   539         1          0.5      0.5      0.0          boxes_per_level = {}
+   540         1         38.8     38.8      0.0          x_min, y_min, x_max, y_max = raster.bounds
+   541         1          1.0      1.0      0.0          width = x_max - x_min
+   542         1          0.4      0.4      0.0          height = y_max - y_min
+   543                                           
+   544         9         11.3      1.3      0.0          n_total_boxes = sum([4 ** i for i in range(self.max_depth + 1)])
+   545         1          0.4      0.4      0.0          box_index = 0
+   546         1        302.3    302.3      0.0          idx = index.Index()
+   547                                           
+   548                                                   # print(f"Total boxes: {n_total_boxes}")
+   549                                                   # print(f"Width: {width}, Height: {height} in coordinates")
+   550                                                   # print(f"Minx: {x_min}, Miny: {y_min} in coordinates")
+   551                                                   # print(f"Maxx: {x_max}, Maxy: {y_max} in coordinates")
+   552                                                   # print(f"Raster size: {raster.width} x {raster.height}")
+   553         1          0.6      0.6      0.0          all_nodes = []
+   554                                           
+   555         1          1.7      1.7      0.0          for level in range(self.max_depth, -1, -1):
+   556         1          0.6      0.6      0.0              divisions = 2 ** level
+   557                                                       
+   558         1       1461.4   1461.4      0.0              boxes, ix, iy = get_boxes(divisions, x_min, x_max, y_min, y_max)
+   559                                           
+   560                                                       # Now compute the Morton Z-order values correctly
+   561         1        256.2    256.2      0.0              z_indices = z_order_indices(ix, iy)
+   562                                                       # Sort the boxes accordingly
+   563         1        549.8    549.8      0.0              sort_idx = np.argsort(z_indices)
+   564         1        591.1    591.1      0.0              boxes = boxes[sort_idx]
+   565         1         27.8     27.8      0.0              z_indices = z_indices[sort_idx]
+   566         1         10.9     10.9      0.0              ids = z_indices + box_index
+   567     16385     205008.1     12.5      3.5              shp_boxes = [box(x0, y0, x1, y1) for x0, y0, x1, y1 in boxes]
+   568         1          4.0      4.0      0.0              n_boxes = len(boxes)
+   569         1          2.0      2.0      0.0              box_index = box_index + n_boxes
+   570                                           
+   571         1          3.0      3.0      0.0              if level == 0:
+   572                                                           parent_ids = np.array([-1])
+   573                                                       else:
+   574         1          3.5      3.5      0.0                  parent_div = 2 ** (level - 1)
+   575         1        363.5    363.5      0.0                  parent_ids = (z_indices // 4) + box_index
+   576                                                       
+   577         1          3.0      3.0      0.0              if level == self.max_depth:
+   578                                                           
+   579         2      32347.8  16173.9      0.5                  vector_layer = gpd.GeoDataFrame(
+   580         1          0.8      0.8      0.0                      geometry=shp_boxes,
+   581         1        880.1    880.1      0.0                      crs=feature.crs
+   582                                                           )
+   583                                           
+   584                                                           # count number of pixels in first box
+   585         1       2699.1   2699.1      0.0                  box1 = vector_layer.geometry[0]
+   586         2        765.2    382.6      0.0                  win = rio.windows.from_bounds(
+   587         1       2240.8   2240.8      0.0                      box1.bounds[0],
+   588         1         37.5     37.5      0.0                      box1.bounds[1],
+   589         1         29.6     29.6      0.0                      box1.bounds[2],
+   590         1         58.6     58.6      0.0                      box1.bounds[3],
+   591         1         22.4     22.4      0.0                      transform=raster.transform
+   592                                                           )
+   593         1      29213.2  29213.2      0.5                  data = raster.read(window=win, masked=True)
+   594         1        163.9    163.9      0.0                  data = data[0]
+   595         1        135.5    135.5      0.0                  data = data[~data.mask]
+   596                                           
+   597         1         29.7     29.7      0.0                  masking_method = Masking()
+   598         1    5637478.9    6e+06     95.3                  aggregates = masking_method(raster, vector_layer, self.stats)
+   599                                                           aggregates = np.array(aggregates)
+   600                                                           # print(f"Aggregates count: {aggregates[0]['count']}")
+   601                                                       else:
+   602                                                           # use self._combine_stats to combine the stats of the previous level
+   603                                                           # run combine over the previous_aggregates using previous_ids
+   604                                                           # to know which previous_aggregates belong to which parent
+   605                                           
+   606                                                           aggregates = []
+   607                                                           unique_previous_parents = np.unique(previous_parent_ids)
+   608                                                           for p_id in unique_previous_parents:
+   609                                                               mask = previous_parent_ids == p_id
+   610                                                               child_aggregates = previous_aggregates[mask]
+   611                                                               combined = self._combine_stats(child_aggregates)
+   612                                                               aggregates.append(combined)
+   613                                                           aggregates = np.array(aggregates)
+   614                                           
+   615                                                       previous_aggregates = aggregates
+   616                                                       previous_parent_ids = parent_ids
+   617                                           
+   618                                                       # test_plot(boxes, aggregates, parent_ids, ids)
+   619                                           
+   620                                                       ns = []
+   621                                                       for i in range(len(boxes)):
+   622                                                           
+   623                                                           node = Node(
+   624                                                               _id=ids[i],
+   625                                                               parent_id=parent_ids[i],
+   626                                                               level=level,
+   627                                                               max_depth=self.max_depth,
+   628                                                               _box=shp_boxes[i],
+   629                                                               stats=aggregates[i],
+   630                                                           )
+   631                                                           ns.append(node)
+   632                                                           idx.insert(ids[i], boxes[i], obj=node)
+   633                                                           all_nodes.append(node)
+   634                                                   
+   635                                           
+   636                                                   self.idx = idx
 
-Total time: 1.17348 s
+Total time: 5.92729 s
 File: /media/simon/HDD/strix/repos/mdml/raptor-cs6964/raptor_methods.py
-Function: _compute_stats at line 370
+Function: _precomputations at line 639
 
 Line #      Hits         Time  Per Hit   % Time  Line Contents
 ==============================================================
-   370                                               @line_profiler.profile
-   371                                               def _compute_stats(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader, window: rio.windows.Window):
-   372                                           
-   373                                                   # Get all intersecting nodes, sorted from root to leaves
-   374        49        955.4     19.5      0.1          window_bounds = rio.windows.bounds(window, raster.transform)
-   375        49     106976.6   2183.2      9.1          nodes = list(self.idx.intersection(window_bounds, objects=True))[::-1]
-   376      1305        595.1      0.5      0.1          nodes = [node.object for node in nodes]
-   377        49       8422.5    171.9      0.7          geom = feature.geometry[0]
-   378                                           
-   379                                                   # Debugging code
-   380                                                   # global_mask = np.zeros((window.height, window.width), dtype=bool)
-   381                                           
-   382        49         23.2      0.5      0.0          partials = []
-   383      1305        865.1      0.7      0.1          while len(nodes) > 0:
-   384      1256       2348.1      1.9      0.2              node = nodes.pop(0)
-   385      1256      35230.0     28.0      3.0              if node.is_contained_in_geom(geom):
-   386                                                           # print(f"Fully conained node")
-   387                                           
-   388                                                           # add the entire node to the mask
-   389       162       5002.6     30.9      0.4                  win = rio.windows.from_bounds(
-   390        54       1132.2     21.0      0.1                      *node.box.bounds,
-   391        54        320.3      5.9      0.0                      transform=raster.transform
-   392                                                           )
-   393                                                           # Calculate the overlap of the node's window relative to the main processing window
-   394                                                           # row_start = int(win.row_off - window.row_off)
-   395                                                           # row_end   = int(row_start + win.height)
-   396                                                           # col_start = int(win.col_off - window.col_off)
-   397                                                           # col_end   = int(col_start + win.width)
-   398                                           
-   399                                                           # # Update global mask
-   400                                                           # global_mask[row_start:row_end, col_start:col_end] = True
-   401                                                           # i want here to set true in the global_mask, which
-   402                                                           # is inside the window
-   403                                                           # end of debugging code
-   404                                           
-   405        54         44.9      0.8      0.0                  partials.append(node.stats)
-   406        54         62.9      1.2      0.0                  if node.is_leaf():
-   407        51         16.3      0.3      0.0                      continue
-   408                                                           # remove all children from the list
-   409        60         17.5      0.3      0.0                  for n in nodes:
-   410        57         22.9      0.4      0.0                      if n.parent_id == node.id:
-   411                                                                   nodes.remove(n)
-   412                                                       else:
-   413      1202       1265.0      1.1      0.1                  if node.is_leaf():
-   414                                                               # print(f"Not contained leaf")
-   415                                                               # is leaf but only intersects the geom
-   416       602      58705.0     97.5      5.0                      intersection_geom = node.box.intersection(geom)
-   417       602       7618.1     12.7      0.6                      if intersection_geom.is_empty:
-   418                                                                   # means that both the node intersects
-   419                                                                   # the window but not the feature
-   420       120         44.7      0.4      0.0                          continue
-   421      1446      49711.5     34.4      4.2                      win = rio.windows.from_bounds(
-   422       482       9041.5     18.8      0.8                          *intersection_geom.bounds,
-   423       482       3193.8      6.6      0.3                          transform=raster.transform
-   424                                                               )
-   425       482       2771.5      5.8      0.2                      out_shape = (int(np.ceil(win.height)), int(np.ceil(win.width)))
-   426      1446     582679.6    403.0     49.7                      mask = rio.features.rasterize(
-   427       482        205.4      0.4      0.0                          [(intersection_geom, 1)],
-   428       482       1036.2      2.1      0.1                          out_shape=(int(np.ceil(win.height)), int(np.ceil(win.width))),
-   429       482       9573.2     19.9      0.8                          transform=rio.windows.transform(win, raster.transform),
-   430       482        132.0      0.3      0.0                          fill=0,
-   431       482        109.9      0.2      0.0                          dtype='uint8'
-   432       482       3972.4      8.2      0.3                      ).astype(bool)
-   433       482     154855.2    321.3     13.2                      data = raster.read(window=win, out_shape=out_shape, masked=True)[0]
-   434       482      31583.4     65.5      2.7                      data = data[mask]
-   435       482      88994.5    184.6      7.6                      partials.append(self._compute_stats_from_masked_array(data))
-   436                                           
-   437                                                               # add the mask to the global mask
-   438                                                               
-   439                                                               # map into global mask
-   440                                                               # row_start = int(win.row_off - np.ceil(window.row_off))
-   441                                                               # col_start = int(win.col_off - np.ceil(window.col_off))
-   442                                                               # h, w = mask.shape
-   443                                                               # global_mask[row_start:row_start + h, col_start:col_start + w] = mask
-   444                                                               # assert global_mask.shape[0] >= row_start + h
-   445                                                               # assert global_mask.shape[1] >= col_start + w
-   446                                           
-   447                                                               # end of debugging code
-   448                                           
-   449                                                           else:
-   450                                                               # not completely inside but has children, so the children
-   451                                                               # will be analyzed in next iterations
-   452       600        163.2      0.3      0.0                      continue
-   453                                                   
-   454                                                   # check global mask
-   455                                                   # plot_masks(raster, feature, global_mask, window)
-   456                                           
-   457                                                   # combine the partials
-   458        49       5786.7    118.1      0.5          return self._combine_stats(partials)
+   639                                               @line_profiler.profile
+   640                                               def _precomputations(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
+   641         1    5927293.6    6e+06    100.0          self._compute_quad_tree(features, raster)
+   642                                                   self._compute_scanline_reading_table(features, raster)
 
-Total time: 8.54763 s
-File: /media/simon/HDD/strix/repos/mdml/raptor-cs6964/zone_stat_method.py
-Function: _run at line 136
+Total time: 5.92732 s
+File: /media/simon/HDD/strix/repos/mdml/raptor-cs6964/raptor_methods.py
+Function: _run at line 644
 
 Line #      Hits         Time  Per Hit   % Time  Line Contents
 ==============================================================
-   136                                               @line_profiler.profile
-   137                                               def _run(self, vector_layer: gpd.GeoDataFrame, raster: rio.DatasetReader):
-   138         2          1.0      0.5      0.0          results = []
-   139         2      40115.7  20057.9      0.5          self._precomputations(vector_layer, raster)
-   140      1075      10410.2      9.7      0.1          for geom in vector_layer.geometry:
-   141      1073        289.8      0.3      0.0              try:
-   142      1073     303256.8    282.6      3.5                  window = geometry_window(raster, [geom])
-   143                                                       except rio.errors.WindowError:
-   144                                                           # there is no intersection
-   145                                                           results.append(None)
-   146                                                           continue
-   147      1073    3247107.2   3026.2     38.0              feature = gpd.GeoDataFrame(geometry=[geom], crs=vector_layer.crs)
-   148      1073    4946447.5   4609.9     57.9              results.append(self._compute_stats(feature, raster, window))
-   149         2          1.7      0.9      0.0          return results
+   644                                               @line_profiler.profile
+   645                                               def _run(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
+   646         1    5927319.0    6e+06    100.0          self._precomputations(features, raster)
+   647                                           
+   648                                                   reading_table = self._reading_table
+   649                                                   f_index_starts = self.f_index_starts
+   650                                                   unique_f_indices = self.unique_f_indices
+   651                                                   n_features = self.n_features
+   652                                                   transform = raster.transform
+   653                                           
+   654                                                   def xy_to_rowcol(xs, ys):
+   655                                                       # pixel in which the point is located
+   656                                                       cols, rows = (~transform) * (xs, ys)
+   657                                                       return np.floor(rows).astype(int), np.floor(cols).astype(int)
+   658                                           
+   659                                                   new_reading_table = []
+   660                                                   partials = [[] for _ in range(n_features)]
+   661                                           
+   662                                                   for f_index, geom in enumerate(features.geometry):
+   663                                           
+   664                                                       # Get all intersecting nodes, sorted from root to leaves
+   665                                                       # window for geom
+   666                                                       window_bounds = geom.bounds
+   667                                                       # window_bounds = rio.windows.bounds(window, raster.transform)
+   668                                                       nodes = list(self.idx.intersection(window_bounds, objects=True))[::-1]
+   669                                                       nodes = [node.object for node in nodes]
+   670                                                       nodes = [node for node in nodes if node.is_contained_in_geom(geom)]
+   671                                                       nodes = sorted(nodes, key=lambda x: x.level)
+   672                                                       without_children = []
+   673                                                       nids = set([int(n.id) for n in nodes])
+   674                                                       for n in nodes:
+   675                                                           if int(n.parent_id) not in nids:
+   676                                                               without_children.append(n)
+   677                                           
+   678                                                       nodes = without_children
+   679                                                       # node_copy = nodes.copy()
+   680                                           
+   681                                                       f_index_start = f_index_starts[f_index]
+   682                                                       f_index_end = f_index_starts[f_index + 1] if f_index + 1 < n_features else len(reading_table)
+   683                                                       f_reading_table = reading_table[f_index_start:f_index_end]
+   684                                           
+   685                                                       if len(nodes) == 0:
+   686                                                           new_reading_table.append(f_reading_table)
+   687                                                           continue
+   688                                                       
+   689                                                       # if f_index == 25:
+   690                                                       #     nnodes = [n for n in nodes if n.is_contained_in_geom(geom)]
+   691                                                       #     bbx = [n.box for n in nnodes]
+   692                                                       #     iids = [n.id for n in nnodes]
+   693                                                       #     aags = []
+   694                                                       #     piids = [n.parent_id for n in nnodes]
+   695                                                       #     # test_plot(bbx, aags, piids, iids)
+   696                                                       #     print(f"Feature index: {f_index}")
+   697                                                       
+   698                                                       to_read = []
+   699                                                       
+   700                                                       for node in nodes:
+   701                                                       
+   702                                                           # if f_index == 25:
+   703                                                           #     print("Node: " + str(node.id))
+   704                                                           #     print("Parent: " + str(node.parent_id))
+   705                                                           #     print("Level: " + str(node.level))
+   706                                                           #     print("Box: " + str(node.box.bounds))
+   707                                                           #     print("Box: " + str((np.array(node.box.bounds) / 1e6).round(3)))
+   708                                           
+   709                                                           bounds = node.box.bounds
+   710                                                           n_x0, n_y0, n_x1, n_y1 = bounds
+   711                                                           
+   712                                                           partials[f_index].append(node.stats)
+   713                                           
+   714                                                           ys = f_reading_table[:, 0]
+   715                                                           x0s = f_reading_table[:, 1]
+   716                                                           x1s = f_reading_table[:, 2]
+   717                                           
+   718                                                           inside_y = (ys >= n_y0) & (ys <= n_y1)
+   719                                                           inside_x = (x0s >= n_x0) & (x1s <= n_x1)
+   720                                                           fully_inside = inside_y & inside_x
+   721                                           
+   722                                                           f_reading_table = f_reading_table[~fully_inside]
+   723                                                           ys = f_reading_table[:, 0]
+   724                                                           x0s = f_reading_table[:, 1]
+   725                                                           x1s = f_reading_table[:, 2]
+   726                                                           rows = f_reading_table[:, 3]
+   727                                                           col0s = f_reading_table[:, 4]
+   728                                                           col1s = f_reading_table[:, 5]
+   729                                                           f_idxs = f_reading_table[:, 6]
+   730                                                           # y, x0, x1, rows, col0s, col1s, f_index
+   731                                           
+   732                                                           inside_y = (ys >= n_y0) & (ys <= n_y1)
+   733                                                           overlaps_left = (x0s < n_x0) & (x1s > n_x0)  # crosses left edge
+   734                                                           overlaps_right = (x1s > n_x1) & (x0s < n_x1) # crosses right edge
+   735                                                           overlaps_both = (x0s < n_x0) & (x1s > n_x1)   # crosses both sides
+   736                                                           horizontally_intersect = (x0s < n_x1) & (x1s > n_x0)
+   737                                           
+   738                                                           new_entries = []
+   739                                           
+   740                                                           cut_left = horizontally_intersect & (overlaps_left | overlaps_both) & inside_y
+   741                                                           n_cut_left = np.sum(cut_left)
+   742                                                           if n_cut_left > 0:
+   743                                                               new_entry_left = np.stack([
+   744                                                                   ys[cut_left],
+   745                                                                   x0s[cut_left],  # new x0 is the left border
+   746                                                                   np.ones(n_cut_left) * n_x0,
+   747                                                                   rows[cut_left],
+   748                                                                   -1 * np.ones(n_cut_left),  # col0 placeholder
+   749                                                                   -1 * np.ones(n_cut_left),  # col1 placeholder
+   750                                                                   f_idxs[cut_left]
+   751                                                               ], axis=1)
+   752                                                               new_entries.append(new_entry_left)
+   753                                                           
+   754                                                           cut_right = horizontally_intersect & (overlaps_right | overlaps_both) & inside_y
+   755                                                           n_cut_right = np.sum(cut_right)
+   756                                                           if n_cut_right > 0:
+   757                                                               new_entry_right = np.stack([
+   758                                                                   ys[cut_right],
+   759                                                                   np.ones(n_cut_right) * n_x1,  # new x0 is right border
+   760                                                                   x1s[cut_right],
+   761                                                                   rows[cut_right],
+   762                                                                   -1 * np.ones(n_cut_right),  # col0 placeholder
+   763                                                                   -1 * np.ones(n_cut_right),  # col1 placeholder
+   764                                                                   f_idxs[cut_right]
+   765                                                               ], axis=1)
+   766                                                               new_entries.append(new_entry_right)
+   767                                                           
+   768                                                           completely_outside = ~inside_y | ~horizontally_intersect
+   769                                                           outside_rows = f_reading_table[completely_outside]
+   770                                           
+   771                                                           if new_entries:
+   772                                                               new_entries = np.vstack(new_entries)
+   773                                                               new_entries_ys = new_entries[:, 0]
+   774                                                               new_entries_x0s = new_entries[:, 1]
+   775                                                               new_entries_x1s = new_entries[:, 2]
+   776                                                               _, new_entries_col0s = xy_to_rowcol(new_entries_x0s, new_entries_ys)
+   777                                                               _, new_entries_col1s = xy_to_rowcol(new_entries_x1s, new_entries_ys)
+   778                                                               new_entries[:, 4] = new_entries_col0s
+   779                                                               new_entries[:, 5] = new_entries_col1s
+   780                                                               f_reading_table = np.vstack([outside_rows, new_entries])
+   781                                                           else:
+   782                                                               f_reading_table = outside_rows
+   783                                           
+   784                                                           # if f_index == 25:
+   785                                                           #     print(25)
+   786                                                       
+   787                                                       new_reading_table.append(f_reading_table)
+   788                                                       
+   789                                           
+   790                                                   new_reading_table = np.vstack(new_reading_table)
+   791                                                   # sort new reading table by rows
+   792                                                   sort_idx = np.lexsort((new_reading_table[:, 3], new_reading_table[:, 6]))
+   793                                                   reading_table = new_reading_table[sort_idx]
+   794                                                   reading_table = reading_table[:, 3:].astype(int)
+   795                                                   rows, row_starts = np.unique(reading_table[:, 3], return_index=True)
+   796                                           
+   797                                                   pixel_values_per_feature = [[] for _ in range(n_features)]
+   798                                                   
+   799                                               
+   800                                           
+   801                                                   for i, row in enumerate(rows):
+   802                                                       start = row_starts[i]
+   803                                                       end = row_starts[i+1] if i+1 < len(row_starts) else len(reading_table)
+   804                                                       reading_line = reading_table[start:end]
+   805                                                       
+   806                                                       min_col = np.min(reading_line[:, 1])
+   807                                                       max_col = np.max(reading_line[:, 2])
+   808                                                       reading_window = rio.windows.Window(
+   809                                                           col_off=min_col,
+   810                                                           row_off=row,
+   811                                                           width=max_col - min_col,
+   812                                                           height=1
+   813                                                       )
+   814                                                       # Does not handle nodata
+   815                                                       data = raster.read(1, window=reading_window, masked=False)[0]
+   816                                                       for j, col0, col1, f_index in reading_line:
+   817                                                           c0 = col0 - min_col
+   818                                                           c1 = col1 - min_col
+   819                                                           pixel_values = data[c0:c1]
+   820                                           
+   821                                                           if len(pixel_values) > 0:
+   822                                                               pixel_values_per_feature[f_index].append(pixel_values)
+   823                                                   
+   824                                                   # combine the results
+   825                                                   results_per_feature = []
+   826                                                   for i in range(len(pixel_values_per_feature)):
+   827                                                       feature_data = np.concatenate(pixel_values_per_feature[i])
+   828                                                       # get the stats
+   829                                                       r = self._compute_stats_from_array(feature_data)
+   830                                                       tree_r = partials[i]
+   831                                                       tree_r.append(r)
+   832                                                       r = self._combine_stats(tree_r)
+   833                                                       results_per_feature.append(r)
+   834                                           
+   835                                                   self.results = results_per_feature
+   836                                           
+   837                                                   return self.results
 

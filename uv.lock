@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.12"
 
 [[package]]
@@ -693,6 +692,12 @@ wheels = [
 ]
 
 [[package]]
+name = "pyzorder"
+version = "0.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1c/d0/f99375fb3d2c0614f6152b8fcd81f5ec29f84ecd8ba65fba70f7f005cf29/pyzorder-0.0.2.tar.gz", hash = "sha256:29ef907f5345b843f99629cf69483dd94bf039d2ba0fe3606867a913af7e8ccc", size = 6686 }
+
+[[package]]
 name = "raptor-cs6964"
 version = "0.1.0"
 source = { virtual = "." }
@@ -706,6 +711,7 @@ dependencies = [
     { name = "psutil" },
     { name = "pyqt5" },
     { name = "pyqt6" },
+    { name = "pyzorder" },
     { name = "rasterio" },
     { name = "rasterstats" },
     { name = "rtree" },
@@ -726,6 +732,7 @@ requires-dist = [
     { name = "psutil", specifier = ">=7.0.0" },
     { name = "pyqt5", specifier = ">=5.15.11" },
     { name = "pyqt6", specifier = ">=6.8.0" },
+    { name = "pyzorder", specifier = ">=0.0.2" },
     { name = "rasterio", specifier = ">=1.4.3" },
     { name = "rasterstats", specifier = ">=0.20.0" },
     { name = "rtree", specifier = ">=1.4.0" },

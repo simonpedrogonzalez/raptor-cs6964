@@ -425,7 +425,6 @@ class AggQuadTree2(ZonalStatMethod):
             "max_depth": self.max_depth
         }
 
-
     def _compute_scanline_reading_table(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
 
         transform = raster.transform
@@ -506,6 +505,34 @@ class AggQuadTree2(ZonalStatMethod):
     @line_profiler.profile
     def _compute_quad_tree(self, feature: gpd.GeoDataFrame, raster: rio.DatasetReader):
         
+        def part1by1(n):
+            n &= 0x0000ffff
+            n = (n | (n << 8)) & 0x00FF00FF
+            n = (n | (n << 4)) & 0x0F0F0F0F
+            n = (n | (n << 2)) & 0x33333333
+            n = (n | (n << 1)) & 0x55555555
+            return n
+
+        def z_order_indices(xs, ys):
+            return (part1by1(ys) << 1) | part1by1(xs)
+
+        def get_boxes(divisions, x_min, x_max, y_min, y_max):
+            dx = (x_max - x_min) / divisions
+            dy = (y_max - y_min) / divisions
+            x_starts = np.linspace(x_min, x_max - dx, divisions)
+            y_starts = np.linspace(y_min, y_max - dy, divisions)
+            xs, ys = np.meshgrid(x_starts, y_starts)
+            boxes = np.stack([xs.flatten(), ys.flatten(), (xs + dx).flatten(), (ys + dy).flatten()], axis=1)
+
+            # ALSO get the corresponding grid indices (ix, iy) to calculate Z-order
+            grid_xs, grid_ys = np.meshgrid(np.arange(divisions), np.arange(divisions))
+            ix = grid_xs.flatten()
+            iy = grid_ys.flatten()
+
+            return boxes, ix, iy
+
+
+
         # width = raster.width
         # height = raster.height
 
@@ -523,47 +550,30 @@ class AggQuadTree2(ZonalStatMethod):
         # print(f"Minx: {x_min}, Miny: {y_min} in coordinates")
         # print(f"Maxx: {x_max}, Maxy: {y_max} in coordinates")
         # print(f"Raster size: {raster.width} x {raster.height}")
+        all_nodes = []
 
         for level in range(self.max_depth, -1, -1):
             divisions = 2 ** level
-            dx = width / divisions
-            dy = height / divisions
-            x_starts = np.linspace(x_min, x_max - dx, divisions)
-            y_starts = np.linspace(y_min, y_max - dy, divisions)
-
-            xs, ys = np.meshgrid(x_starts, y_starts)
-
-            xs = xs.flatten()
-            ys = ys.flatten()
-
-            boxes = np.stack([xs, ys, xs + dx, ys + dy], axis=1)
             
-            if level != 0:
-                blocks = boxes.reshape(divisions//2, 2, divisions//2, 2, 4)\
-                    .transpose(0, 2, 1, 3, 4)\
-                    .reshape(-1, 4)
-                boxes = blocks
-                
-            n_boxes = len(blocks)
+            boxes, ix, iy = get_boxes(divisions, x_min, x_max, y_min, y_max)
 
-            # print(f"Level {level}: {n_boxes} boxes")
-            # print(f"Divisions: {divisions}")
-            # print(f"Len boxes: {len(boxes)}")
-            # print(f"max boxes: {max(boxes[:, 2])}, {max(boxes[:, 3])}")
-            # print(f"min boxes: {min(boxes[:, 0])}, {min(boxes[:, 1])}")
-            # print(f"First box: {boxes[0]}")
-
-            ids = (np.arange(n_boxes) + box_index).astype('int32')
-            box_index += n_boxes
-            parent_ids = (np.arange(n_boxes // 4) + box_index).astype('int32').repeat(4)
-            if level == 0:
-                parent_ids = np.array([np.nan])
-
-            shp_boxes1 = box(boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3])
+            # Now compute the Morton Z-order values correctly
+            z_indices = z_order_indices(ix, iy)
+            # Sort the boxes accordingly
+            sort_idx = np.argsort(z_indices)
+            boxes = boxes[sort_idx]
+            z_indices = z_indices[sort_idx]
+            ids = z_indices + box_index
             shp_boxes = [box(x0, y0, x1, y1) for x0, y0, x1, y1 in boxes]
-            # print(shp_boxes[0])
-            # print(shp_boxes1[0])
-            # print(boxes[0])
+            n_boxes = len(boxes)
+            box_index = box_index + n_boxes
+
+            if level == 0:
+                parent_ids = np.array([-1])
+            else:
+                parent_div = 2 ** (level - 1)
+                parent_ids = (z_indices // 4) + box_index
+            
             if level == self.max_depth:
                 
                 vector_layer = gpd.GeoDataFrame(
@@ -583,7 +593,6 @@ class AggQuadTree2(ZonalStatMethod):
                 data = raster.read(window=win, masked=True)
                 data = data[0]
                 data = data[~data.mask]
-                # print(f"Data shape: {data.shape}")
 
                 masking_method = Masking()
                 aggregates = masking_method(raster, vector_layer, self.stats)
@@ -595,39 +604,44 @@ class AggQuadTree2(ZonalStatMethod):
                 # to know which previous_aggregates belong to which parent
 
                 aggregates = []
-                for i in range(len(boxes)):
-                    child_ids = previous_ids[previous_parent_ids == previous_parent_ids[i]] \
-                        - previous_ids.min()
-                    child_aggregates = previous_aggregates[child_ids]
-
-                    aggregates.append(self._combine_stats(child_aggregates))
-                
+                unique_previous_parents = np.unique(previous_parent_ids)
+                for p_id in unique_previous_parents:
+                    mask = previous_parent_ids == p_id
+                    child_aggregates = previous_aggregates[mask]
+                    combined = self._combine_stats(child_aggregates)
+                    aggregates.append(combined)
                 aggregates = np.array(aggregates)
 
             previous_aggregates = aggregates
-            previous_ids = ids
             previous_parent_ids = parent_ids
-            
-            # test_plot(boxes, aggregates)
 
+            # test_plot(boxes, aggregates, parent_ids, ids)
+
+            ns = []
             for i in range(len(boxes)):
+                
                 node = Node(
                     _id=ids[i],
                     parent_id=parent_ids[i],
                     level=level,
                     max_depth=self.max_depth,
                     _box=shp_boxes[i],
-                    stats=aggregates[i]
+                    stats=aggregates[i],
                 )
+                ns.append(node)
                 idx.insert(ids[i], boxes[i], obj=node)
+                all_nodes.append(node)
+        
 
         self.idx = idx
 
 
+    @line_profiler.profile
     def _precomputations(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
         self._compute_quad_tree(features, raster)
         self._compute_scanline_reading_table(features, raster)
 
+    @line_profiler.profile
     def _run(self, features: gpd.GeoDataFrame, raster: rio.DatasetReader):
         self._precomputations(features, raster)
 
@@ -642,12 +656,6 @@ class AggQuadTree2(ZonalStatMethod):
             cols, rows = (~transform) * (xs, ys)
             return np.floor(rows).astype(int), np.floor(cols).astype(int)
 
-
-
-
-        # Debugging code
-        # global_mask = np.zeros((window.height, window.width), dtype=bool)
-
         new_reading_table = []
         partials = [[] for _ in range(n_features)]
 
@@ -659,213 +667,123 @@ class AggQuadTree2(ZonalStatMethod):
             # window_bounds = rio.windows.bounds(window, raster.transform)
             nodes = list(self.idx.intersection(window_bounds, objects=True))[::-1]
             nodes = [node.object for node in nodes]
+            nodes = [node for node in nodes if node.is_contained_in_geom(geom)]
+            nodes = sorted(nodes, key=lambda x: x.level)
+            without_children = []
+            nids = set([int(n.id) for n in nodes])
+            for n in nodes:
+                if int(n.parent_id) not in nids:
+                    without_children.append(n)
 
-            # Debugging code
-            node_copy = nodes.copy()
-            # End Debugging code
-            
+            nodes = without_children
+            # node_copy = nodes.copy()
+
             f_index_start = f_index_starts[f_index]
             f_index_end = f_index_starts[f_index + 1] if f_index + 1 < n_features else len(reading_table)
             f_reading_table = reading_table[f_index_start:f_index_end]
 
-            assert np.all(f_reading_table[:, 6] == f_index), f"f_index {f_index} not equal to {f_reading_table[:, 6]}"
-
-
+            if len(nodes) == 0:
+                new_reading_table.append(f_reading_table)
+                continue
+            
+            # if f_index == 25:
+            #     nnodes = [n for n in nodes if n.is_contained_in_geom(geom)]
+            #     bbx = [n.box for n in nnodes]
+            #     iids = [n.id for n in nnodes]
+            #     aags = []
+            #     piids = [n.parent_id for n in nnodes]
+            #     # test_plot(bbx, aags, piids, iids)
+            #     print(f"Feature index: {f_index}")
+            
             to_read = []
-            while len(nodes) > 0:
-                node = nodes.pop(0)
-                if node.is_contained_in_geom(geom):
-                    
-                    if f_index == 25:
-                        print('one node for 25')
-
-                    # print(f"Fully conained node")
-
-                    # add the entire node to the mask
-                    # win = rio.windows.from_bounds(
-                    #     *node.box.bounds,
-                    #     transform=raster.transform
-                    # )
-                    # Calculate the overlap of the node's window relative to the main processing window
-                    # row_start = int(win.row_off - window.row_off)
-                    # row_end   = int(row_start + win.height)
-                    # col_start = int(win.col_off - window.col_off)
-                    # col_end   = int(col_start + win.width)
-
-                    # # Update global mask
-                    # global_mask[row_start:row_end, col_start:col_end] = True
-                    # i want here to set true in the global_mask, which
-                    # is inside the window
-                    # end of debugging code
-
-                    bounds = node.box.bounds
-                    n_x0, n_y0, n_x1, n_y1 = bounds
-                    
-                    partials[f_index].append(node.stats)
-
-                    ys = f_reading_table[:, 0]
-                    x0s = f_reading_table[:, 1]
-                    x1s = f_reading_table[:, 2]
-
-                    inside_y = (ys >= n_y0) & (ys <= n_y1)
-                    inside_x = (x0s >= n_x0) & (x1s <= n_x1)
-                    fully_inside = inside_y & inside_x
-
-                    f_reading_table = f_reading_table[~fully_inside]
-                    ys = f_reading_table[:, 0]
-                    x0s = f_reading_table[:, 1]
-                    x1s = f_reading_table[:, 2]
-                    rows = f_reading_table[:, 3]
-                    col0s = f_reading_table[:, 4]
-                    col1s = f_reading_table[:, 5]
-                    f_idxs = f_reading_table[:, 6]
-                    # y, x0, x1, rows, col0s, col1s, f_index
-
-                    inside_y = (ys >= n_y0) & (ys <= n_y1)
-                    overlaps_left = (x0s < n_x0) & (x1s > n_x0)  # crosses left edge
-                    overlaps_right = (x1s > n_x1) & (x0s < n_x1) # crosses right edge
-                    overlaps_both = (x0s < n_x0) & (x1s > n_x1)   # crosses both sides
-                    horizontally_intersect = (x0s < n_x1) & (x1s > n_x0)
-
-                    new_entries = []
-
-                    cut_left = horizontally_intersect & (overlaps_left | overlaps_both) & inside_y
-                    n_cut_left = np.sum(cut_left)
-                    if n_cut_left > 0:
-                        new_entry_left = np.stack([
-                            ys[cut_left],
-                            x0s[cut_left],  # new x0 is the left border
-                            np.ones(n_cut_left) * n_x0,
-                            rows[cut_left],
-                            -1 * np.ones(n_cut_left),  # col0 placeholder
-                            -1 * np.ones(n_cut_left),  # col1 placeholder
-                            f_idxs[cut_left]
-                        ], axis=1)
-                        new_entries.append(new_entry_left)
-                    
-                    cut_right = horizontally_intersect & (overlaps_right | overlaps_both) & inside_y
-                    n_cut_right = np.sum(cut_right)
-                    if n_cut_right > 0:
-                        new_entry_right = np.stack([
-                            ys[cut_right],
-                            np.ones(n_cut_right) * n_x1,  # new x0 is right border
-                            x1s[cut_right],
-                            rows[cut_right],
-                            -1 * np.ones(n_cut_right),  # col0 placeholder
-                            -1 * np.ones(n_cut_right),  # col1 placeholder
-                            f_idxs[cut_right]
-                        ], axis=1)
-                        new_entries.append(new_entry_right)
-                    
-                    completely_outside = ~inside_y | ~horizontally_intersect
-                    outside_rows = f_reading_table[completely_outside]
-
-                    if new_entries:
-                        new_entries = np.vstack(new_entries)
-                        new_entries_ys = new_entries[:, 0]
-                        new_entries_x0s = new_entries[:, 1]
-                        new_entries_x1s = new_entries[:, 2]
-                        _, new_entries_col0s = xy_to_rowcol(new_entries_x0s, new_entries_ys)
-                        _, new_entries_col1s = xy_to_rowcol(new_entries_x1s, new_entries_ys)
-                        new_entries[:, 4] = new_entries_col0s
-                        new_entries[:, 5] = new_entries_col1s
-                        f_reading_table = np.vstack([outside_rows, new_entries])
-                    else:
-                        f_reading_table = outside_rows
-
-                    if f_index == 25:
-                        print(25)
-                    # Debugging code
-                    # feature_bounding_box = geom.bounds
-                    # feature_window = rio.windows.from_bounds(
-                    #     *feature_bounding_box,
-                    #     transform=raster.transform
-                    # )
-
-                    # sanity check, all reading rable values should be within the feature window
-                    # Precompute
-                    # row_off = int(np.floor(feature_window.row_off))
-                    # col_off = int(np.floor(feature_window.col_off))
-                    # row_max = row_off + int(np.ceil(feature_window.height))
-                    # col_max = col_off + int(np.ceil(feature_window.width))
-                    
-                    # Pixel indices checks
-                    # ys = f_reading_table[:, 0]
-                    # x0s = f_reading_table[:, 1]
-                    # x1s = f_reading_table[:, 2]
-                    # rows = f_reading_table[:, 3]
-                    # col0s = f_reading_table[:, 4]
-                    # col1s = f_reading_table[:, 5]
-                    # f_idxs = f_reading_table[:, 6]
-                    # assert np.all((rows >= row_off) & (rows <= row_max)), "Row out of bounds"
-                    # assert np.all((f_reading_table[:, 4] >= col_off) & (f_reading_table[:, 4] <= col_max)), "Col0 out of bounds"
-                    # assert np.all((f_reading_table[:, 5] >= col_off) & (f_reading_table[:, 5] <= col_max)), "Col1 out of bounds"
-                    # # World coordinates checks (optional but good)
-                    # x_min, y_min, x_max, y_max = feature_bounding_box
-                    # assert np.all((f_reading_table[:, 0] >= y_min) & (f_reading_table[:, 0] <= y_max)), "Y coordinate out of bounds"
-                    # assert np.all((f_reading_table[:, 1] >= x_min) & (f_reading_table[:, 1] <= x_max)), "X0 coordinate out of bounds"
-                    # assert np.all((f_reading_table[:, 2] >= x_min) & (f_reading_table[:, 2] <= x_max)), "X1 coordinate out of bounds"
-                    # # end sanity check
-
-                    # gm_width = int(np.ceil(feature_window.width))
-                    # gm_height = int(np.ceil(feature_window.height))
-                    # global_mask = np.zeros((gm_height+1, gm_width+1), dtype=int)
-
-                    # # mark pixels from node bounds
-                    # # mark pixels from node bounds
-                    # row1, col1 = xy_to_rowcol(n_x0, n_y0)
-                    # row2, col2 = xy_to_rowcol(n_x1, n_y1)
-
-                    # # Sort the rows and cols properly
-                    # gb_row_start = int(min(row1, row2) - feature_window.row_off)
-                    # gb_row_end   = int(max(row1, row2) - feature_window.row_off)
-                    # gb_col_start = int(min(col1, col2) - feature_window.col_off)
-                    # gb_col_end   = int(max(col1, col2) - feature_window.col_off)
-
-                    # # Set the rectangle
-                    # global_mask[gb_row_start:gb_row_end, gb_col_start:gb_col_end] = 1
-
-                    
-                    # # mark pixels from f_reading_table
-                    # # Precompute integer offsets
-                    # row_off = int(np.floor(feature_window.row_off))
-                    # col_off = int(np.floor(feature_window.col_off))
-
-                    # for i in range(len(f_reading_table)):
-                    #     row = int(f_reading_table[i, 3]) - row_off
-                    #     col0 = int(f_reading_table[i, 4]) - col_off
-                    #     col1 = int(f_reading_table[i, 5]) - col_off
-                    #     global_mask[row, col0:col1] = 2
-                    # # plot_masks(raster, geom, global_mask, feature_window)
-                    # import matplotlib.pyplot as plt
-                    # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-                    # ax.imshow(global_mask, cmap='inferno')
-                    # ax.set_title('Global Mask')
-                    # plt.savefig('global_mask_agg_quad_tree.png')
-                    # print('done')
-                    # End debugging code
-
-                    if node.is_leaf():
-                        continue
-                    # remove all children from the list
-                    for n in nodes:
-                        if n.parent_id == node.id:
-                            nodes.remove(n)
             
-            # Debugging code
-            # draw the lines in f_reading_table and the node boxes for each node in node_copy
-            feature_window = rio.windows.from_bounds(
-                *geom.bounds,
-                transform=raster.transform
-            )
-            feature_bounding_box = geom.bounds
-
-
-            if f_index == 6:
-                print('stop')
-
+            for node in nodes:
             
+                # if f_index == 25:
+                #     print("Node: " + str(node.id))
+                #     print("Parent: " + str(node.parent_id))
+                #     print("Level: " + str(node.level))
+                #     print("Box: " + str(node.box.bounds))
+                #     print("Box: " + str((np.array(node.box.bounds) / 1e6).round(3)))
 
+                bounds = node.box.bounds
+                n_x0, n_y0, n_x1, n_y1 = bounds
+                
+                partials[f_index].append(node.stats)
+
+                ys = f_reading_table[:, 0]
+                x0s = f_reading_table[:, 1]
+                x1s = f_reading_table[:, 2]
+
+                inside_y = (ys >= n_y0) & (ys <= n_y1)
+                inside_x = (x0s >= n_x0) & (x1s <= n_x1)
+                fully_inside = inside_y & inside_x
+
+                f_reading_table = f_reading_table[~fully_inside]
+                ys = f_reading_table[:, 0]
+                x0s = f_reading_table[:, 1]
+                x1s = f_reading_table[:, 2]
+                rows = f_reading_table[:, 3]
+                col0s = f_reading_table[:, 4]
+                col1s = f_reading_table[:, 5]
+                f_idxs = f_reading_table[:, 6]
+                # y, x0, x1, rows, col0s, col1s, f_index
+
+                inside_y = (ys >= n_y0) & (ys <= n_y1)
+                overlaps_left = (x0s < n_x0) & (x1s > n_x0)  # crosses left edge
+                overlaps_right = (x1s > n_x1) & (x0s < n_x1) # crosses right edge
+                overlaps_both = (x0s < n_x0) & (x1s > n_x1)   # crosses both sides
+                horizontally_intersect = (x0s < n_x1) & (x1s > n_x0)
+
+                new_entries = []
+
+                cut_left = horizontally_intersect & (overlaps_left | overlaps_both) & inside_y
+                n_cut_left = np.sum(cut_left)
+                if n_cut_left > 0:
+                    new_entry_left = np.stack([
+                        ys[cut_left],
+                        x0s[cut_left],  # new x0 is the left border
+                        np.ones(n_cut_left) * n_x0,
+                        rows[cut_left],
+                        -1 * np.ones(n_cut_left),  # col0 placeholder
+                        -1 * np.ones(n_cut_left),  # col1 placeholder
+                        f_idxs[cut_left]
+                    ], axis=1)
+                    new_entries.append(new_entry_left)
+                
+                cut_right = horizontally_intersect & (overlaps_right | overlaps_both) & inside_y
+                n_cut_right = np.sum(cut_right)
+                if n_cut_right > 0:
+                    new_entry_right = np.stack([
+                        ys[cut_right],
+                        np.ones(n_cut_right) * n_x1,  # new x0 is right border
+                        x1s[cut_right],
+                        rows[cut_right],
+                        -1 * np.ones(n_cut_right),  # col0 placeholder
+                        -1 * np.ones(n_cut_right),  # col1 placeholder
+                        f_idxs[cut_right]
+                    ], axis=1)
+                    new_entries.append(new_entry_right)
+                
+                completely_outside = ~inside_y | ~horizontally_intersect
+                outside_rows = f_reading_table[completely_outside]
+
+                if new_entries:
+                    new_entries = np.vstack(new_entries)
+                    new_entries_ys = new_entries[:, 0]
+                    new_entries_x0s = new_entries[:, 1]
+                    new_entries_x1s = new_entries[:, 2]
+                    _, new_entries_col0s = xy_to_rowcol(new_entries_x0s, new_entries_ys)
+                    _, new_entries_col1s = xy_to_rowcol(new_entries_x1s, new_entries_ys)
+                    new_entries[:, 4] = new_entries_col0s
+                    new_entries[:, 5] = new_entries_col1s
+                    f_reading_table = np.vstack([outside_rows, new_entries])
+                else:
+                    f_reading_table = outside_rows
+
+                # if f_index == 25:
+                #     print(25)
+            
             new_reading_table.append(f_reading_table)
             
 
@@ -878,17 +796,7 @@ class AggQuadTree2(ZonalStatMethod):
 
         pixel_values_per_feature = [[] for _ in range(n_features)]
         
-        # Debugging code
-        window = rio.windows.from_bounds(
-            *features.total_bounds,
-            transform=transform
-        )
-        row_start = int(np.floor(window.row_off))
-        col_start = int(np.floor(window.col_off))
-        w_height = int(np.ceil(window.height))
-        w_width = int(np.ceil(window.width))
-        global_mask = np.zeros((w_height+1, w_width+1), dtype=int)
-        # End Debugging code
+    
 
         for i, row in enumerate(rows):
             start = row_starts[i]
@@ -909,19 +817,10 @@ class AggQuadTree2(ZonalStatMethod):
                 c0 = col0 - min_col
                 c1 = col1 - min_col
                 pixel_values = data[c0:c1]
-                
-                # Debugging code
-                # mark the pixels in the global mask
-                row_in_mask = row - row_start
-                col0_in_mask = col0 - col_start
-                col1_in_mask = col1 - col_start
-                global_mask[row_in_mask, col0_in_mask:col1_in_mask] = f_index + 1
-                # End Debugging code
 
                 if len(pixel_values) > 0:
                     pixel_values_per_feature[f_index].append(pixel_values)
         
-
         # combine the results
         results_per_feature = []
         for i in range(len(pixel_values_per_feature)):
@@ -935,29 +834,11 @@ class AggQuadTree2(ZonalStatMethod):
 
         self.results = results_per_feature
 
-
-        # Debugging code
-        # plot the global mask
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-        ax.imshow(global_mask, cmap='inferno')
-        ax.set_title('Global Mask')
-        plt.savefig('global_ror_mask_agg_quad_tree.png')
-        print('done')
-
-
-        # Debugging code
-        # global
-
-        # check global mask
-        # plot_masks(raster, feature, global_mask, window)
-
-        # combine the partials
         return self.results
 
 
 
-def test_plot(boxes, aggregates):
+def test_plot(boxes, aggregates, parent_ids, ids):
 
     nx, ny = 8, 8
     # normalize boxes to fit in the figure
@@ -982,13 +863,22 @@ def test_plot(boxes, aggregates):
         cx = (x0 + x1) / 2
         cy = (y0 + y1) / 2
         tt = aggregates[i]['count']
-        ax.text(cx, cy, tt, fontsize=8, ha='center', va='center')
+        pp = parent_ids[i]
+
+        color = 'black'
+        if int(pp) in [1330, 1220, 1221, 1224]:
+            color = 'red'
+
+        ii = ids[i]
+        ttt = str(ii) + ' p:' + str(pp)
+        ax.text(cx, cy, ttt, fontsize=8, ha='center', va='center', color=color)
 
     ax.set_xlim(min(boxes[:, 0]), max(boxes[:, 2]))
     ax.set_ylim(min(boxes[:, 1]), max(boxes[:, 3]))
     ax.set_aspect('equal')
     ax.invert_yaxis()  # Optional: to mimic raster image top-down layout
     plt.grid(True)
+    plt.show()
     plt.savefig('test_plot.png')
 
 
@@ -1055,7 +945,7 @@ def test_raster():
 def test():
     from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
     from reference import reference_method
-    ag = AggQuadTree2(max_depth=5)
+    ag = AggQuadTree2(max_depth=7)
     vector_layer_file = f'{VECTOR_DATA_PATH}/cb_2018_us_state_20m_filtered.shp'
     raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR_resampled_x4.tif'
 
@@ -1079,4 +969,4 @@ def test():
 
     print('done')
 
-test()
+# test()
