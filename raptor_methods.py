@@ -171,7 +171,7 @@ class Scanline(ZonalStatMethod):
         return self.results
 
 
-class AggQuadTree2(ZonalStatMethod):
+class AggQuadTree(ZonalStatMethod):
 
     
     __name__ = "AggQuadTree"
@@ -713,7 +713,7 @@ def test_raster():
 def test():
     from constants import VECTOR_DATA_PATH, RASTER_DATA_PATH
     from reference import reference_method
-    ag = AggQuadTree2(max_depth=7)
+    ag = AggQuadTree(max_depth=7)
     vector_layer_file = f'{VECTOR_DATA_PATH}/cb_2018_us_state_20m_filtered.shp'
     raster_layer_file = f'{RASTER_DATA_PATH}/US_MSR_resampled_x4.tif'
 

@@ -1,14 +1,15 @@
 from zone_stat_method import ZonalStatMethod
 import rasterio as rio
+from rasterio.mask import mask as rio_mask
 import geopandas as gpd
 import shapely as shp
 import numpy as np
 from rasterstats import zonal_stats
 
 
-class Masking2(ZonalStatMethod):
+class RasterStatsMasking(ZonalStatMethod):
 
-    __name__ = "Masking2"
+    __name__ = "RasterStatsMasking"
 
     def __init__(self):
         super().__init__()
@@ -78,6 +79,6 @@ class Clipping(ZonalStatMethod):
         # nodata_value = raster.nodata if raster.nodata is not None else -999
 
         data = raster.read(window=window, masked=True)
-        clipped_data, _ = rio.mask.mask(raster, [feature.geometry[0]], crop=False, filled=False)
+        clipped_data, _ = rio_mask(raster, [feature.geometry[0]], crop=False, filled=True)
         
-        return self._compute_stats_from_masked_array(clipped_data[0]) # Return first band
+        return self._compute_stats_from_array(clipped_data[0]) # Return first band

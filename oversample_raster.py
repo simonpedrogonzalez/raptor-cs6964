@@ -33,7 +33,7 @@ def upsample_tiff(input_path, output_path, scale_factor):
             dst.write(data)
 
 file = f'{RASTER_DATA_PATH}/US_MSR.tif'
-scale_factor = 10  # Change this to your desired scale factor
+scale_factor = 4  # Change this to your desired scale factor
 output_file = f'{RASTER_DATA_PATH}/US_MSR_upsampled_{scale_factor}.tif'
 print(f"Upsampling {file} to {output_file} with scale factor {scale_factor}...")
 upsample_tiff(file, output_file, scale_factor)

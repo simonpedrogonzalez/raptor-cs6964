@@ -48,6 +48,8 @@ class ExperimentAggregator:
         
         # Create a new column with the comparison groups
         df['comparison_group'] = df[actual_comparison_cols].apply(lambda x: '_'.join(x.astype(str)), axis=1)
+        # remove any _nan from the comparison group
+        df['comparison_group'] = df['comparison_group'].str.replace('_nan', '')
 
         metrics = [
             "total_time_s",
@@ -58,7 +60,7 @@ class ExperimentAggregator:
         ]
 
         n_groups = df['comparison_group'].nunique()
-        width = 8
+        width = 7
         height = 5
         run_name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         # create a directory for the results
@@ -68,6 +70,20 @@ class ExperimentAggregator:
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
         
+        metric_dict = {
+            "total_time_s": "Total Time (s)",
+            "cpu_time_s": "CPU Time (s)",
+            "memory_peak_GB": "Memory Peak (GB)",
+            "io_read_MB": "IO Read (MB)",
+            "io_read_time_s": "IO Read Time (s)",
+        }
+
+        all_groups = df['comparison_group'].unique()
+        palette_colors = sns.color_palette("Set1", n_colors=len(all_groups))
+        group_color_mapping = dict(zip(all_groups, palette_colors))
+
+        sns.set(style="whitegrid")
+
         for metric in metrics:
             # create a boxplot for this metric comparing
             # the different comparison groups
@@ -78,11 +94,11 @@ class ExperimentAggregator:
 
 
             fig, ax = plt.subplots(figsize=(width, height))
-            sns.boxplot(y='comparison_group', x=metric, data=df, ax=ax, order=ordered_groups)
-            ax.set_title(metric)
-            ax.set_ylabel("Comparison group")
-            ax.set_xlabel(metric)
-            plt.yticks(rotation=0)  # (Optional) keep group labels readable
+            
+            sns.boxplot(y='comparison_group', x=metric, data=df, ax=ax, order=ordered_groups, palette=group_color_mapping, width=0.5)
+            # ax.set_title(metric)
+            ax.set_ylabel("")
+            ax.set_xlabel(metric_dict[metric])
             plt.tight_layout()
             plt.savefig(f"{dir_name}/{metric}.svg")
             plt.clf()
