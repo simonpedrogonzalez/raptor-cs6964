@@ -1,57 +1,50 @@
 # raptor-cs6964
 
-Raster, Vector and Raptor Based approaches for aggregate calculations on GIS data.
-
-## Recommendations for the project
-
-1. I like using gitkraken for managing the repository, you should have access to the pro version if you requested the student github pack with you university email.
-
-2. I like vscode as IDE.
+Raster, Vector and Raptor Based approaches for Zonal Statistics calculations on GIS data.
 
 ## Environment setup
 
 ### Using uv manager
 
-uv is my favorite because:
-- it covers all needs (managing python versions, virtual envs and dependency resolution)
-- it's ridiculous how fast it is
-- the `.venv` is created by default in the project directory:
-    - allows inspecting dependencies code easily (useful for checking how a library implements a zonal statistic method, for example)
-    - keeps each project's dependencies isolated explicitly
-
-1. uv installation https://docs.astral.sh/uv/getting-started/installation/#standalone-installer
-2. uv python version installation: `uv python install 3.12` (recommended because is about 60% faster than 3.10 or previous versions)
+1. Clone the repo
+2. uv installation https://docs.astral.sh/uv/getting-started/installation/#standalone-installer
+2. uv python version installation: `uv python install 3.12`
 3. venv creation and dependency installation: cd to the project directory and run `uv sync`
-
-Other things you may want to do with uv:
-- `uv python list` to see all installed python versions
-- `uv add <package>` to install a package in the current venv
 
 ### Using other tools
 
-If you wanna use conda, pipenv, pip or whatever, I exported a requirements.txt file with the dependencies, which you can use to install them.
+If you want use conda, pipenv, pip or whatever, I exported a requirements.txt file with the dependencies, which you can use to install them.
 
 ## Running the code
+
+From console: activate the environment with `source .venv/bin/activate` and run the script with `python src/my_experiment.py`.
 
 If using vscode and uv, remember to setup the python interpreter used for your debugger: open command pallete (ctrl+shift+p) and search for "Python: Select Interpreter", then select the one in the .venv directory, which should be something like `Python 3.12.8 ('.venv')`.
 
 Then just "Run and Debug" as usual.
 
-## Useful stuff
-- Install QGIS in linux: http://test.qgis.org/html/en/site/forusers/alldownloads.html#debian-ubuntu
+## Troubleshooting
 
-## Dataset sources
+0. Send an email to `u1528314@umail.utah.edu`, I'll be happy to help.
 
-Raster data sources:
-- https://cds.climate.copernicus.eu/datasets
+1. If not present in the repo, create directories:
+`data/raster`
+`data/vector`
+`data/indices`
+`results`
 
-Vector data sources:
-- https://www.gadm.org
-- https://www.naturalearthdata.com/downloads/10m-cultural-vectors/
+2. If you get an error when running AggQuadTree, check if the index files for the raster data that you are using are already present. If the index files were produced with a diferent "stats" configuration, they might not be compatible with your current run. Hence, delete the index files and the method will generate them again.
 
+3. If you are receiving the zip, all data and indices should already be present.
 
-## Raptor
-https://colab.research.google.com/drive/1OhHzpgIcS9SKf2ePFtTwmQaurqjwNtMP
+## Files:
 
-## Raster
-https://colab.research.google.com/drive/1OBDEDemhsbOFmfPteVjuAfFcbU2tXAbz
+Method implementation: `vector_methods.py`, `raster_methods.py`, `raptor_methods.py`, `zonal_stats.py`, `node.py`
+
+Benchmarking framework implementation: `experiment.py`, `experiment_aggregator.py`
+
+Preprocessing scripts: `preprocess.py`, `oversample_raster.py`
+
+Replicating reported experiments: `exp_all_algorithms_in_default_raster.py`, `exp_fast_alg_only.py`, `exp_fast_alg_only_raster_scaling.py`, `exp_fast_alg_only_vector_scaling.py`, `exp_tune_agg_qtree.py`.
+
+Kafka Files: `kafka/`

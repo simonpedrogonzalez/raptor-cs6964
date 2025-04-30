@@ -4,11 +4,6 @@ from raster_methods import RasterStatsMasking, Masking
 from raptor_methods import AggQuadTree, Scanline
 from experiment_aggregator import ExperimentAggregator
 
-# change the shape file crs from 4269 to 3857
-# and save it to the same file
-# vector = gpd.read_file(vector_layer_file)
-# vector.to_crs(epsg=3857, inplace=True)
-# vector.to_file(vector_layer_file)
 
 exps = [
     Experiment(
